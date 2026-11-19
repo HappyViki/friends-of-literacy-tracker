@@ -97,7 +97,8 @@ If staff have since used demo families or locations, the reset stops and lists w
 | `npm run db:seed` | Languages and the standard surveys (safe to re-run) |
 | `npm run seed:demo [-- --reset]` | Demo data on dev (see [Demo data](#demo-data)) |
 | `npm run staff:add -- email [--admin]` | Allow someone to use the app |
-| `npm run deploy` | Deploy the API to the linked branch |
+| `npm run deploy` | Deploy the API to the linked branch (dev) |
+| `npm run deploy:production` | Deploy the API to production, with settings from `.env.neon-production` (`neon env pull --branch production --file .env.neon-production`, plus `OPENAI_API_KEY` and `ALLOWED_ORIGINS`) |
 | `npm test` | Unit tests |
 | `npm run test:e2e` | End-to-end test against the deployed API (refuses to run on production) |
 | `npm run test:smoke` | Production-safe smoke test (needs `neon env pull --branch production --file .env.neon-production`) |
