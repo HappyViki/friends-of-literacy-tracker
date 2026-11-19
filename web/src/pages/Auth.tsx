@@ -8,10 +8,9 @@ export type SessionUser = { id: string; email: string; name: string; emailVerifi
 function Brand({ subtitle }: { subtitle: string }) {
   return (
     <header className="brand-hero">
-      <div className="brand-emoji" aria-hidden>
-        📚 🌷
-      </div>
-      <h1>Little Readers</h1>
+      <h1>
+        <img className="brand-logo" src="/logo.png" alt="Friends of Literacy" width={2402} height={1019} />
+      </h1>
       <p>{subtitle}</p>
     </header>
   );
@@ -53,9 +52,25 @@ export function SignIn({ onSignedIn }: { onSignedIn: (u: SessionUser) => void })
     }
   }
 
+  async function google() {
+    setPending(true);
+    setError(null);
+    try {
+      // Redirects to Google and back to this page; the app's session check then signs the user in.
+      const result = await authClient.signIn.social({ provider: "google", callbackURL: window.location.origin + window.location.pathname });
+      if (result?.error) {
+        setError(result.error.message || "Google sign-in didn't start. Try again.");
+        setPending(false);
+      }
+    } catch {
+      setError("Can't reach the sign-in service. Check the internet connection.");
+      setPending(false);
+    }
+  }
+
   return (
     <main className="auth-page">
-      <Brand subtitle="Staff and volunteer sign-in for Friends of Literacy" />
+      <Brand subtitle="Staff and volunteer sign-in" />
       <form className="card auth-card" onSubmit={submit}>
         <h2>{mode === "up" ? "Create your account" : "Sign in"}</h2>
         {mode === "up" && (
@@ -90,6 +105,18 @@ export function SignIn({ onSignedIn }: { onSignedIn: (u: SessionUser) => void })
           }}
         >
           {mode === "up" ? "Already have an account? Sign in" : "New volunteer? Create an account"}
+        </button>
+        <div className="or-divider" role="separator">
+          <span>or</span>
+        </div>
+        <button type="button" className="google block" onClick={google} disabled={pending}>
+          <svg aria-hidden width="18" height="18" viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.2C12.4 13.7 17.7 9.5 24 9.5z" />
+            <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.2 5.6c4.2-3.9 7.1-9.6 7.1-17z" />
+            <path fill="#FBBC05" d="M10.5 28.5c-.5-1.4-.8-2.9-.8-4.5s.3-3.1.8-4.5l-7.9-6.2C1 16.6 0 20.2 0 24s1 7.4 2.6 10.7l7.9-6.2z" />
+            <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.2-5.6c-2 1.4-4.7 2.3-8.7 2.3-6.3 0-11.6-4.2-13.5-10l-7.9 6.2C6.6 42.6 14.6 48 24 48z" />
+          </svg>
+          Continue with Google
         </button>
       </form>
     </main>

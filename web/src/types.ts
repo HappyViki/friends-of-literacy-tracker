@@ -63,7 +63,7 @@ export type Family = {
     distributionId: number;
     distributedAt: string;
     location: string;
-    books: { isbn: string; title: string; category: string; condition: "new" | "used"; quantity: number; forChild: string | null }[];
+    books: { isbn: string; title: string; category: string; readingLevel: string | null; language: string | null; condition: "new" | "used"; quantity: number; forChild: string | null }[];
   }[];
   surveyResponses: { responseId: number; survey: string; surveyName: string; submittedAt: string; answers: Record<string, unknown> }[];
 };
@@ -116,6 +116,8 @@ export type InventoryRow = {
   title: string;
   authors: string[];
   category: string;
+  readingLevel: string | null;
+  language: string | null;
   locationId: number;
   location: string;
   condition: "new" | "used";

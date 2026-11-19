@@ -417,7 +417,7 @@ function Inventory() {
 
   const rows = useMemo(() => {
     const f = filter.trim().toLowerCase();
-    return (inv.data ?? []).filter((r) => !f || r.title.toLowerCase().includes(f) || r.isbn.includes(f) || r.category.toLowerCase().includes(f) || r.authors.join(" ").toLowerCase().includes(f));
+    return (inv.data ?? []).filter((r) => !f || r.title.toLowerCase().includes(f) || r.isbn.includes(f) || r.category.toLowerCase().includes(f) || (r.readingLevel ?? "").toLowerCase().includes(f) || (r.language ?? "").toLowerCase().includes(f) || r.authors.join(" ").toLowerCase().includes(f));
   }, [inv.data, filter]);
   const total = rows.reduce((n, r) => n + r.onHand, 0);
 
@@ -435,7 +435,7 @@ function Inventory() {
                 </option>
               ))}
             </select>
-            <input aria-label="Filter" placeholder="Filter by title, author, category, ISBN" value={filter} onChange={(e) => setFilter(e.target.value)} />
+            <input aria-label="Filter" placeholder="Filter by title, author, reading level, language, genre, ISBN" value={filter} onChange={(e) => setFilter(e.target.value)} />
           </div>
         </div>
         {flash && <Notice kind="ok">{flash}</Notice>}
@@ -465,7 +465,9 @@ function Inventory() {
                 <thead>
                   <tr>
                     <th>Title</th>
-                    <th>Category</th>
+                    <th>Reading level</th>
+                    <th>Language</th>
+                    <th>Genre</th>
                     {locId === "all" && <th>Location</th>}
                     <th>Condition</th>
                     <th className="num">On hand</th>
@@ -481,6 +483,8 @@ function Inventory() {
                         <a href={`#/books/scan/${r.isbn}`}>{r.title}</a>
                         <div className="muted small">{r.authors.join(", ")}</div>
                       </td>
+                      <td>{r.readingLevel ?? "—"}</td>
+                      <td>{r.language ?? "—"}</td>
                       <td>{r.category}</td>
                       {locId === "all" && <td>{r.location}</td>}
                       <td>{r.condition}</td>

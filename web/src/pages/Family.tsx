@@ -114,7 +114,7 @@ export function FamilyPage({ householdId }: { householdId: string }) {
                       <a href={`#/books/scan/${b.isbn}`}>{b.title}</a>
                       <span className="muted small">
                         {" "}
-                        · {b.category} · {b.condition}
+                        · {[b.readingLevel, b.language, b.category].filter(Boolean).join(" · ")} · {b.condition}
                         {b.quantity > 1 && ` ×${b.quantity}`}
                         {b.forChild && ` · for ${b.forChild}`}
                       </span>

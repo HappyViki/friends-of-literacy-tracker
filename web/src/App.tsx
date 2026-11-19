@@ -209,7 +209,7 @@ function Shell({ name, signOut }: { name: string; signOut: () => void }) {
     <div className="app">
       <header className="topbar">
         <a className="logo" href="#/">
-          <span aria-hidden>📚</span> Little Readers
+          <img src="/brandmark.png" alt="" width={32} height={32} /> Friends of Literacy
         </a>
         <button className="loc-chip" onClick={changeLocation} title="Change location">
           <span aria-hidden>📍</span> {location.name} <span className="muted">({location.code})</span>
