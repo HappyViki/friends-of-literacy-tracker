@@ -6,7 +6,7 @@ import { useState, type FormEvent } from "react";
 import { api, authAdmin } from "../auth";
 import { useApp } from "../context";
 import type { StaffMember } from "../types";
-import { ErrorBox, Loading, Notice, fmtDate, toApiError, useAsync } from "../ui";
+import { ErrorBox, Loading, Notice, PagerBar, fmtDate, toApiError, useAsync, usePager } from "../ui";
 
 const WORDS = ["maple", "river", "sunny", "robin", "cedar", "lark", "meadow", "story", "puzzle", "comet", "harbor", "willow", "acorn", "pebble", "lantern", "otter"];
 
@@ -50,6 +50,7 @@ export function StaffAccounts() {
   }
 
   const rows = (staff.data ?? []).filter((s) => showRemoved || s.active);
+  const pager = usePager(rows, { resetKey: showRemoved });
   return (
     <section className="card stack">
       <div className="row spread wrap">
@@ -97,7 +98,7 @@ export function StaffAccounts() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((s) => {
+              {pager.rows.map((s) => {
                 const you = s.email === me.email;
                 const hasPassword = s.signIn.includes("credential");
                 return (
@@ -149,6 +150,7 @@ export function StaffAccounts() {
               })}
             </tbody>
           </table>
+          <PagerBar pager={pager} noun="people" />
         </div>
       )}
       <p className="muted small">

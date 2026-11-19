@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api, ApiError } from "../auth";
 import { useApp } from "../context";
 import type { Book, BookScan, Classifications, InventoryRow, StockRow } from "../types";
-import { ErrorBox, Loading, Notice, ScanField, fmtDate, fmtDateTime, go, plural, toApiError, useAsync } from "../ui";
+import { ErrorBox, Loading, Notice, PagerBar, ScanField, fmtDate, fmtDateTime, go, plural, toApiError, useAsync, usePager } from "../ui";
 import { BookTags, Cover } from "./GiveBooks";
 
 const TABS = [
@@ -90,6 +90,7 @@ function Classification({ label, value, source, conf }: { label: string; value: 
 function BookDetails({ scan }: { scan: BookScan }) {
   const { locations } = useApp();
   const b = scan.book;
+  const history = usePager(scan.giveaways, { size: 10, resetKey: b.isbn });
   const byLoc = new Map<number, { code: string; name: string; new: number; used: number }>();
   for (const s of scan.stock) {
     const l = byLoc.get(s.locationId) ?? { code: s.location, name: locations.find((x) => x.id === s.locationId)?.name ?? s.location, new: 0, used: 0 };
@@ -164,6 +165,7 @@ function BookDetails({ scan }: { scan: BookScan }) {
         {scan.giveaways.length === 0 ? (
           <p className="muted">Not given away yet.</p>
         ) : (
+          <>
           <div className="table-scroll">
             <table className="table">
               <thead>
@@ -176,7 +178,7 @@ function BookDetails({ scan }: { scan: BookScan }) {
                 </tr>
               </thead>
               <tbody>
-                {scan.giveaways.map((g, i) => (
+                {history.rows.map((g, i) => (
                   <tr key={i}>
                     <td>{fmtDateTime(g.distributedAt)}</td>
                     <td>{g.location}</td>
@@ -195,6 +197,8 @@ function BookDetails({ scan }: { scan: BookScan }) {
               </tbody>
             </table>
           </div>
+          <PagerBar pager={history} noun="giveaways" />
+          </>
         )}
       </section>
     </>
@@ -419,6 +423,7 @@ function Inventory() {
     const f = filter.trim().toLowerCase();
     return (inv.data ?? []).filter((r) => !f || r.title.toLowerCase().includes(f) || r.isbn.includes(f) || r.category.toLowerCase().includes(f) || (r.readingLevel ?? "").toLowerCase().includes(f) || (r.language ?? "").toLowerCase().includes(f) || r.authors.join(" ").toLowerCase().includes(f));
   }, [inv.data, filter]);
+  const pager = usePager(rows, { resetKey: `${locId}|${filter}` });
   const total = rows.reduce((n, r) => n + r.onHand, 0);
 
   return (
@@ -477,7 +482,7 @@ function Inventory() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {pager.rows.map((r) => (
                     <tr key={`${r.isbn}-${r.locationId}-${r.condition}`}>
                       <td>
                         <a href={`#/books/scan/${r.isbn}`}>{r.title}</a>
@@ -503,6 +508,7 @@ function Inventory() {
               </table>
             </div>
             {rows.length === 0 && <p className="muted">No copies on hand{filter ? " match that filter" : ""}.</p>}
+            <PagerBar pager={pager} noun="rows" />
           </>
         )}
       </section>

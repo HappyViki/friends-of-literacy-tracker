@@ -261,3 +261,99 @@ export function familyName(f: { guardians: { firstName: string; lastName: string
 }
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+
+// ---------------------------------------------------------------- paging
+
+const PAGE_SIZES = [10, 25, 50, 100];
+
+export type Pager<T> = { rows: T[]; page: number; pages: number; size: number; total: number; setPage: (p: number) => void; setSize: (s: number) => void };
+
+/**
+ * Splits a long list into pages. Goes back to page 1 when `resetKey` changes (a new filter
+ * or search) and stays in range when the list shrinks (a row was removed).
+ */
+export function usePager<T>(items: readonly T[], { size: initial = 25, resetKey = "" }: { size?: number; resetKey?: unknown } = {}): Pager<T> {
+  const [size, setSizeState] = useState(initial);
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [resetKey]);
+  const pages = Math.max(1, Math.ceil(items.length / size));
+  const current = Math.min(page, pages);
+  return {
+    rows: items.slice((current - 1) * size, current * size),
+    page: current,
+    pages,
+    size,
+    total: items.length,
+    setPage: (p) => setPage(Math.max(1, Math.min(p, pages))),
+    setSize: (s) => {
+      setSizeState(s);
+      setPage(1);
+    },
+  };
+}
+
+/** Page numbers to show: first, last, and two either side of the current page, with gaps. */
+function pageList(page: number, pages: number): (number | "…")[] {
+  const keep = new Set([1, pages, page - 2, page - 1, page, page + 1, page + 2].filter((p) => p >= 1 && p <= pages));
+  const out: (number | "…")[] = [];
+  let prev = 0;
+  for (const p of [...keep].sort((a, b) => a - b)) {
+    if (p - prev > 1) out.push("…");
+    out.push(p);
+    prev = p;
+  }
+  return out;
+}
+
+/** "Showing 26–50 of 54", page buttons and a rows-per-page picker. Hidden when everything fits on one page. */
+export function PagerBar<T>({ pager, noun = "rows" }: { pager: Pager<T>; noun?: string }) {
+  const { page, pages, size, total, setPage, setSize } = pager;
+  if (total <= PAGE_SIZES[0]) return null;
+  const from = (page - 1) * size + 1;
+  const to = Math.min(page * size, total);
+  return (
+    <nav className="pager" aria-label="Pages">
+      <span className="muted small">
+        Showing {from.toLocaleString()}–{to.toLocaleString()} of {total.toLocaleString()} {noun}
+      </span>
+      {pages > 1 && (
+        <span className="pager-pages">
+          <button type="button" className="secondary small" onClick={() => setPage(page - 1)} disabled={page === 1} aria-label="Previous page">
+            ‹ Prev
+          </button>
+          {pageList(page, pages).map((p, i) =>
+            p === "…" ? (
+              <span key={`gap${i}`} className="muted pager-gap">
+                …
+              </span>
+            ) : (
+              <button
+                type="button"
+                key={p}
+                className={`small ${p === page ? "" : "secondary"}`}
+                onClick={() => setPage(p)}
+                aria-current={p === page ? "page" : undefined}
+                aria-label={`Page ${p}`}
+              >
+                {p}
+              </button>
+            ),
+          )}
+          <button type="button" className="secondary small" onClick={() => setPage(page + 1)} disabled={page === pages} aria-label="Next page">
+            Next ›
+          </button>
+        </span>
+      )}
+      <label className="pager-size small">
+        Rows per page{" "}
+        <select value={size} onChange={(e) => setSize(Number(e.target.value))}>
+          {PAGE_SIZES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </label>
+    </nav>
+  );
+}

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { api } from "../auth";
 import { useApp } from "../context";
 import type { Survey } from "../types";
-import { ErrorBox, Loading, fmtDate, fmtPhone, plural, useAsync } from "../ui";
+import { ErrorBox, Loading, PagerBar, fmtDate, fmtPhone, plural, useAsync, usePager } from "../ui";
 import { PRESETS } from "./Reports";
 
 type MissingFamily = {
@@ -53,6 +53,16 @@ export function SurveyCoverage() {
 
   const surveyName = surveys.data?.find((s) => s.key === survey)?.name ?? survey;
   const d = data.data;
+  const [search, setSearch] = useState("");
+  const q = search.trim().toLowerCase();
+  const digits = q.replace(/\D/g, "");
+  const missing = (d?.missing ?? []).filter(
+    (m) =>
+      !q ||
+      `${m.firstName} ${m.lastName ?? ""} ${m.cardNumber ?? ""} ${m.email ?? ""} ${m.zipCode}`.toLowerCase().includes(q) ||
+      (digits.length >= 3 && (m.phone ?? "").includes(digits)),
+  );
+  const pager = usePager(missing, { resetKey: `${from}|${to}|${locationId}|${survey}|${q}` });
 
   function downloadCsv() {
     if (!d) return;
@@ -157,6 +167,7 @@ export function SurveyCoverage() {
                 <span className="muted small">
                   Busiest families first · {plural(d.missing.length, "family", "families")}
                 </span>
+                <input type="search" placeholder="Find a family: name, card, phone, email" aria-label="Find a family" value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <div className="table-scroll">
                 <table className="table">
@@ -174,7 +185,7 @@ export function SurveyCoverage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {d.missing.map((m) => (
+                    {pager.rows.map((m) => (
                       <tr key={m.householdId}>
                         <td>
                           <a href={`#/family/${m.householdId}`}>{[m.firstName, m.lastName].filter(Boolean).join(" ") || "Family"}</a>
@@ -201,6 +212,8 @@ export function SurveyCoverage() {
                   </tbody>
                 </table>
               </div>
+              {missing.length === 0 && <p className="muted">No families match “{search}”.</p>}
+              <PagerBar pager={pager} noun="families" />
             </>
           )}
         </>
