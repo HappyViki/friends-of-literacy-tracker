@@ -298,7 +298,7 @@ export async function adjust(body: unknown, staff: Staff) {
 /** Copies on hand, optionally for one location. */
 export async function inventory(locationId?: number) {
   const { rows } = await pool.query(
-    `select s.isbn, b.title, b.authors, b.category, l.id as "locationId", l.code as location, s.condition, s.on_hand as "onHand"
+    `select s.isbn, b.title, b.authors, b.category, b.reading_level as "readingLevel", b.language, l.id as "locationId", l.code as location, s.condition, s.on_hand as "onHand"
      from stock_on_hand s
      join books b on b.isbn = s.isbn
      join locations l on l.id = s.location_id
