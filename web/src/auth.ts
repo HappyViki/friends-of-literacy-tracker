@@ -1,6 +1,7 @@
 import { createAuthClient } from "@neon/auth";
 
-export const authClient = createAuthClient(__NEON_AUTH_URL__);
+// Same-origin path to Neon Auth (proxied; see vite.config.ts), so its cookies are first-party.
+export const authClient = createAuthClient(new URL(__NEON_AUTH_PATH__, window.location.origin).href);
 
 // The Managed client includes Better Auth's JWT and email OTP plugins at runtime, but @neon/auth 0.8.2's
 // vanilla client type does not surface `token()` or `emailOtp`, so describe just those methods here.
