@@ -79,6 +79,7 @@ api.post("/surveys/:key/responses", async (c) =>
 
 // Reports
 api.get("/reports/summary", async (c) => c.json(await reports.summary(c.req.query())));
+api.get("/reports/survey-coverage", async (c) => c.json(await reports.surveyCoverage(c.req.query())));
 
 // Reference data and admin
 api.get("/locations", async (c) => c.json(await admin.listLocations()));
