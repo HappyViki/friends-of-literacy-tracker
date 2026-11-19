@@ -7,7 +7,7 @@ export const authClient = createAuthClient(new URL(__NEON_AUTH_PATH__, window.lo
 // vanilla client type does not surface `token()` or `emailOtp`, so describe just those methods here.
 type Result<T> = { data: T | null; error: { message?: string; code?: string; status?: number } | null };
 type ExtraMethods = {
-  token: () => Promise<Result<{ token: string }>>;
+  token: (opts?: { fetchOptions?: { headers?: Record<string, string> } }) => Promise<Result<{ token: string }>>;
   emailOtp: {
     sendVerificationOtp: (args: { email: string; type: "email-verification" }) => Promise<Result<{ success: boolean }>>;
     verifyEmail: (args: { email: string; otp: string }) => Promise<Result<unknown>>;
@@ -15,6 +15,34 @@ type ExtraMethods = {
 };
 const extra = authClient as unknown as ExtraMethods;
 export const emailOtp = extra.emailOtp;
+
+// The SDK answers any URL containing "/token" from its cached session once getSession() has run,
+// so a plain token() returns { session, user } instead of { token } (e.g. right after Google sign-in,
+// or on any page reload). X-Force-Fetch makes the SDK skip that cache and call /token.
+// The JWT lasts 15 minutes; reuse it until a minute before it expires.
+let cachedJwt: { token: string; exp: number } | null = null;
+
+function jwtExpiry(token: string): number {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof payload.exp === "number" ? payload.exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function getJwt(): Promise<string | null> {
+  if (cachedJwt && cachedJwt.exp - 60_000 > Date.now()) return cachedJwt.token;
+  const { data, error } = await extra.token({ fetchOptions: { headers: { "X-Force-Fetch": "true" } } });
+  const token = !error && typeof data?.token === "string" ? data.token : null;
+  cachedJwt = token ? { token, exp: jwtExpiry(token) } : null;
+  return token;
+}
+
+/** Forget the cached JWT (on sign-out or account change). */
+export function clearJwt() {
+  cachedJwt = null;
+}
 
 /** An API error, with the message (written for staff), status, and any `code` / `details`. */
 export class ApiError extends Error {
@@ -30,8 +58,8 @@ export class ApiError extends Error {
 
 // Calls the Neon Function directly with a short-lived Neon Auth JWT.
 export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
-  const { data, error } = await extra.token();
-  if (error || !data?.token) throw new ApiError("You're signed out. Sign in again.", 401);
+  const token = await getJwt();
+  if (!token) throw new ApiError("You're signed out. Sign in again.", 401);
   const { json: body, ...rest } = init;
   let res: Response;
   try {
@@ -41,7 +69,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
       body: body !== undefined ? JSON.stringify(body) : rest.body,
       headers: {
         ...rest.headers,
-        Authorization: `Bearer ${data.token}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
     });

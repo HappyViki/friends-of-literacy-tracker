@@ -1,6 +1,6 @@
 // Staff app shell: sign-in gate, location picker, header/nav and routes.
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, authClient } from "./auth";
+import { api, ApiError, authClient, clearJwt } from "./auth";
 import { Ctx, saveLocationId, savedLocationId, useApp, type AppCtx } from "./context";
 import type { Language, Location, Me } from "./types";
 import { ErrorBox, Loading, go, toApiError, useRoute } from "./ui";
@@ -27,6 +27,8 @@ export function App() {
 
   const check = useCallback(async (known?: SessionUser) => {
     setGate({ state: "loading" });
+    // A new sign-in or a just-verified email needs a fresh JWT (it carries emailVerified).
+    clearJwt();
     let user = known;
     if (!user) {
       try {
@@ -57,6 +59,7 @@ export function App() {
   useEffect(() => void check(), [check]);
 
   const signOut = useCallback(async () => {
+    clearJwt();
     await authClient.signOut().catch(() => {});
     setGate({ state: "signedOut" });
   }, []);
