@@ -2,8 +2,8 @@ import { defineConfig } from "@neon/config/v1";
 
 export default defineConfig({
   auth: true,
-  // Book categorization fallback after the OpenAI Decisions API. Needs AI Gateway credits;
-  // without them those calls fail and keyword rules are used.
+  // Book categorization (src/books). Needs AI Gateway credits; without them the calls fail
+  // and keyword rules are used.
   aiGateway: true,
   functions: {
     api: {
@@ -15,10 +15,8 @@ export default defineConfig({
           value: process.env.ALLOWED_ORIGINS ?? "http://localhost:5173,http://localhost:4173",
           required: false,
         },
-        // Book categorizer (src/books). OpenAI Decisions API is tried first when set.
-        OPENAI_API_KEY: { value: process.env.OPENAI_API_KEY, required: false },
-        DECISIONS_MODEL: { value: process.env.DECISIONS_MODEL, required: false },
-        // Optional: comma-separated AI Gateway model IDs (default "claude-haiku-5-5,gpt-5-nano").
+        // Optional: comma-separated AI Gateway model IDs for the book categorizer
+        // (default "gpt-6-luna,claude-haiku-5-5,gpt-5-nano").
         GATEWAY_MODELS: { value: process.env.GATEWAY_MODELS, required: false },
         // Time zone for dates in the data export (an evening visit stays on its own day).
         ORG_TIMEZONE: { value: process.env.ORG_TIMEZONE ?? "America/Los_Angeles", required: false },

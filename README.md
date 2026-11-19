@@ -109,7 +109,7 @@ If staff have since used demo families or locations, the reset stops and lists w
 | `npm run seed:demo [-- --reset]` | Demo data on dev (see [Demo data](#demo-data)) |
 | `npm run staff:add -- email [--admin]` | Allow someone to use the app |
 | `npm run deploy` | Deploy the API to the linked branch (dev) |
-| `npm run deploy:production` | Deploy the API to production, with settings from `.env.neon-production` (`neon env pull --branch production --file .env.neon-production`, plus `OPENAI_API_KEY` and `ALLOWED_ORIGINS`) |
+| `npm run deploy:production` | Deploy the API to production, with settings from `.env.neon-production` (`neon env pull --branch production --file .env.neon-production`, plus `ALLOWED_ORIGINS`) |
 | `npm test` | Unit tests |
 | `npm run test:e2e` | End-to-end test against the deployed API (refuses to run on production) |
 | `npm run test:smoke` | Production-safe smoke test (needs `neon env pull --branch production --file .env.neon-production`) |
@@ -137,5 +137,6 @@ All routes except `/health` need `Authorization: Bearer <Neon Auth JWT>` from a 
 | `GET /api/reports/summary?from=&to=&locationId=` | Program report |
 | `GET/POST /api/locations`, `GET /api/languages`, `GET/POST /api/staff` | Reference data and admin |
 
-The Neon AI Gateway fallback needs credits on the Neon org; the OpenAI key (`OPENAI_API_KEY`
-in `.env.local`) is the main categorizer.
+Books are categorized by the Neon AI Gateway (`GATEWAY_MODELS`, default `gpt-6-luna`, then
+`claude-haiku-5-5`, `gpt-5-nano`). It needs AI Gateway credits on the Neon org; without them,
+keyword rules decide.
