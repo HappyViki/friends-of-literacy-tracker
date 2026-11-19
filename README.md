@@ -41,8 +41,14 @@ account's **email to be verified** and listed in `staff_members`. Add the first 
 `web/` is the staff app (Vite + React, no UI framework). `npm run dev` serves it on
 http://localhost:5173 against the API deployed to the linked branch (the API allows that origin).
 
-- **Sign-in**: Neon Auth email and password, email verification by code, a "not on the staff list"
-  screen, then a location picker (remembered per browser; change it from the header).
+- **Sign-in**: Neon Auth email and password or Google, email verification by code, a "not on the
+  staff list" screen, then a location picker (remembered per browser; change it from the header).
+  The browser reaches Neon Auth through this site's own origin at `/neon-auth`, so its cookies are
+  first-party and sign-in works in browsers that block third-party cookies (Safari). Locally that's
+  the Vite dev/preview proxy; on Vercel, `npm run build` adds a small Node.js Function
+  (`web/vercel/neon-auth.js` → `dist/web/api/neon-auth.mjs`) and `vercel.json` routing to it.
+  Deploy the built site with `vercel deploy --prod` from `dist/web`, and add the site's address
+  as a Neon Auth trusted domain and to the API's `ALLOWED_ORIGINS`.
 - **Front desk**: one search box for a scanned or typed card, email, phone or name (typos are fine).
   Lost cards still find the family, with a warning.
 - **New family**: guardians, children (birth year/month or just an age), ZIP and home languages;
