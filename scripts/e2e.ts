@@ -233,6 +233,10 @@ check("report: by home language", rep.booksGivenAway.byHomeLanguage.some((r: any
 check("report: reading days change (2 -> 5)", rep.surveys.readDaysPerWeek.changeForReturningFamilies.first_average === 2 && rep.surveys.readDaysPerWeek.changeForReturningFamilies.latest_average === 5, rep.surveys.readDaysPerWeek);
 check("report: books in home, latest answer", rep.surveys.booksInHome.some((r: any) => r.answer === "11-25"), rep.surveys.booksInHome);
 check("report: everyone reads", rep.surveys.everyoneReads.no === 1, rep.surveys.everyoneReads);
+const inv = (await S("GET", `/api/inventory?locationId=${L1}`)).body;
+check("inventory list includes reading level and language", inv.some((r: any) => r.isbn === CATERPILLAR && r.readingLevel && r.language), inv[0]);
+const all = (await S("GET", "/api/reports/summary")).body;
+check("report: returning counts families with 2+ visits", typeof all.families.returning === "number" && all.families.returning <= all.families.served, all.families);
 check("report: stock on hand", rep.stockOnHand.length >= 1, rep.stockOnHand);
 check("report: bad date -> 400", (await S("GET", "/api/reports/summary?from=last-week")).status === 400);
 
@@ -241,6 +245,9 @@ check("CORS preflight for the app origin", pre.headers.get("access-control-allow
 const evil = await fetch(`${API}/api/giveaways`, { method: "OPTIONS", headers: { Origin: "https://evil.example", "Access-Control-Request-Method": "POST" } });
 check("CORS refuses other origins", evil.headers.get("access-control-allow-origin") !== "https://evil.example");
 
+// Keep test locations and surveys out of staff menus.
+await sqlc.query("update locations set active = false where id = any($1)", [[L1, L2]]);
+await sqlc.query("update surveys set active = false where key = $1", [`spring_event_${run}`]);
 await sqlc.end();
 console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
 process.exit(failures ? 1 : 0);

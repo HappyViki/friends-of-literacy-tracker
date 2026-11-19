@@ -45,11 +45,13 @@ export async function summary(query: Record<string, string | undefined>) {
     byLanguage,
   ] = await Promise.all([
     q(
+      // "Returning": served in the range and has at least two visits overall (up to the range's end),
+      // so a family that came back within the range counts as well as one first seen before it.
       `with served as (select distinct d.household_id from distributions d where ${dist}),
-            firsts as (select household_id, min(distributed_at) as first_at from distributions group by household_id)
+            visits as (select household_id, count(*) as n from distributions d
+                       where :to::date is null or d.distributed_at < :to::date + 1 group by household_id)
        select (select count(*) from served)::int as served,
-              (select count(*) from served s join firsts f using (household_id)
-                 where :from::date is not null and f.first_at < :from::date)::int as returning,
+              (select count(*) from served s join visits v using (household_id) where v.n >= 2)::int as returning,
               (select count(*) from households h
                  where ${inRange("h.created_at")} and (:loc::int is null or h.home_location_id = :loc))::int as signed_up`,
       p,
