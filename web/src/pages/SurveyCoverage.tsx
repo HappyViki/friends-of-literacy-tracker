@@ -73,8 +73,9 @@ export function SurveyCoverage() {
     <section className="card stack">
       <h2>📋 Missing surveys</h2>
       <p className="muted">
-        Families who came for books in this period but have never answered the chosen survey. Ask them at their next visit,
-        or reach out using the contact details below.
+        Families who came for books in this period and still need the chosen survey: never answered it, or, for the
+        returning-visitors survey, not answered recently. Ask them at their next visit, or reach out using the contact
+        details below.
       </p>
       <div className="filters" role="group" aria-label="Survey coverage filters">
         <div className="segmented wrap">

@@ -68,7 +68,7 @@ export function App() {
     case "loading":
       return (
         <main className="auth-page">
-          <Loading label="Opening Little Readers…" />
+          <Loading label="Opening Friends of Literacy…" />
         </main>
       );
     case "signedOut":

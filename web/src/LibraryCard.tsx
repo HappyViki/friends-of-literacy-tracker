@@ -6,8 +6,10 @@ export function LibraryCard({ number, name, location }: { number: string; name: 
     <div className="library-card-wrap">
       <div className="library-card print-card">
         <div className="lc-top">
-          <span className="lc-brand">📚 Little Readers</span>
-          <span className="lc-sub">Friends of Literacy</span>
+          <span className="lc-brand">
+            <img src="/brandmark.png" alt="" width={22} height={22} /> Friends of Literacy
+          </span>
+          <span className="lc-sub">Library card</span>
         </div>
         <div className="lc-name">{name}</div>
         <div className="lc-barcode">

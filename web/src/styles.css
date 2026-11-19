@@ -1,4 +1,4 @@
-/* Little Readers staff app. Look and tone follow the intake prototype (../../styles.css). */
+/* Friends of Literacy staff app. Look and tone follow the intake prototype (../../styles.css). */
 :root {
   --bg: #fff8f3;
   --surface: #ffffff;
@@ -619,11 +619,8 @@ a:focus-visible {
 
 /* ---------- notices & states */
 .notice {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  /* Plain block: notices are sentences (bold lead-in, text, link) and should read as one line. */
+  display: block;
   border-radius: 12px;
   padding: 12px 14px;
   margin: 12px 0;
@@ -822,8 +819,20 @@ a:focus-visible {
   align-items: baseline;
 }
 .lc-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: bold;
-  color: var(--purple);
+  color: #04364f;
+}
+.notice p:first-child {
+  margin-top: 0;
+}
+.notice .actions {
+  margin-top: 8px;
+}
+.survey-who {
+  margin-bottom: 18px;
 }
 .lc-sub {
   font-size: 10px;

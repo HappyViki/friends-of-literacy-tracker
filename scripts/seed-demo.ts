@@ -337,12 +337,16 @@ async function seed() {
     let age: number = weighted([[0, 10], [1, 10], [2, 9], [3, 10], [4, 10], [5, 10], [6, 9], [7, 8], [8, 7], [9, 6], [10, 5], [11, 4], [12, 3], [13, 2], [14, 1]] as const);
     for (let k = 0; k < nKids; k++) {
       const signupYear = new Date(signedUp).getUTCFullYear();
+      const signupMonth = new Date(signedUp).getUTCMonth() + 1;
       const kind = weighted([["exact", 70], ["estimated", 20], ["year", 10]] as const);
+      const birthMonth = kind === "exact" ? int(1, 12) : null;
+      // No child is born after the family signs up (ages assume a July birthday when the month is unknown).
+      const birthYear = signupYear - age - ((birthMonth ?? 7) > signupMonth && age === 0 ? 1 : 0);
       kids.push({
         id: randomUUID(),
         firstName: kidNames[k % kidNames.length],
-        birthYear: signupYear - age,
-        birthMonth: kind === "exact" ? int(1, 12) : null,
+        birthYear,
+        birthMonth,
         estimated: kind === "estimated",
       });
       age = Math.max(0, age - int(1, 4));
