@@ -1,0 +1,90 @@
+
+{
+  "tables": {
+    "households": {
+      "columns": {
+        "household_id": {
+          "type": "SERIAL",
+          "primaryKey": true
+        },
+        "books_in_household": {
+          "type": "INTEGER",
+          "default": 0
+        },
+        "zip_code": {
+          "type": "VARCHAR(10)",
+          "notNull": true
+        },
+        "number_of_readers": {
+          "type": "INTEGER",
+          "default": 0
+        }
+      }
+    },
+    "parents": {
+      "columns": {
+        "parent_id": {
+          "type": "SERIAL",
+          "primaryKey": true
+        },
+        "household_id": {
+          "type": "INTEGER",
+          "notNull": true,
+          "references": "households.household_id"
+        },
+        "first_name": {
+          "type": "VARCHAR(100)",
+          "notNull": true
+        },
+        "parent_email": {
+          "type": "VARCHAR(255)",
+          "notNull": true
+        },
+        "can_read": {
+          "type": "BOOLEAN",
+          "notNull": true
+        }
+      }
+    },
+    "children": {
+      "columns": {
+        "child_id": {
+          "type": "SERIAL",
+          "primaryKey": true
+        },
+        "household_id": {
+          "type": "INTEGER",
+          "notNull": true,
+          "references": "households.household_id"
+        },
+        "first_name": {
+          "type": "VARCHAR(100)",
+          "notNull": true
+        },
+        "language": {
+          "type": "VARCHAR(100)"
+        },
+        "books_received": {
+          "type": "INTEGER",
+          "default": 0
+        },
+        "days_per_month_reading_with_parent": {
+          "type": "INTEGER",
+          "default": 0
+        }
+      }
+    }
+  },
+  "relationships": [
+    {
+      "from": "households.household_id",
+      "to": "parents.household_id",
+      "type": "one-to-many"
+    },
+    {
+      "from": "households.household_id",
+      "to": "children.household_id",
+      "type": "one-to-many"
+    }
+  ]
+}
