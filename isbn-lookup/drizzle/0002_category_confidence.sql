@@ -1,0 +1,1 @@
+ALTER TABLE "books" ADD COLUMN "category_confidence" real;

@@ -1,0 +1,1 @@
+ALTER TABLE "books" ALTER COLUMN "category_model" SET NOT NULL;

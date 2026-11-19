@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1795104680836,
+      "tag": "0000_books",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795104892260,
+      "tag": "0001_category_model_not_null",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795105277355,
+      "tag": "0002_category_confidence",
+      "breakpoints": true
+    }
+  ]
+}
