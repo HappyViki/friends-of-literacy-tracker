@@ -65,7 +65,8 @@ export function Reports() {
           </label>
           <select aria-label="Location" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
             <option value="">All locations</option>
-            {locations.map((l) => (
+            {/* Deactivated locations still count under "All locations". */}
+            {locations.filter((l) => l.active).map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name} ({l.code})
               </option>
