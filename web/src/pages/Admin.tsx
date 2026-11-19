@@ -1,9 +1,10 @@
-// Admins: locations, the staff list, and a read-only view of the surveys.
+// Admins: families missing surveys, locations, the staff list, and a read-only view of the surveys.
 import { useState, type FormEvent } from "react";
 import { api } from "../auth";
 import { useApp } from "../context";
 import type { Location, StaffMember, Survey } from "../types";
 import { ErrorBox, Loading, Notice, fmtDate, toApiError, useAsync } from "../ui";
+import { SurveyCoverage } from "./SurveyCoverage";
 
 export function Admin() {
   const { me } = useApp();
@@ -13,6 +14,7 @@ export function Admin() {
       <header className="page-head">
         <h1>⚙️ Admin</h1>
       </header>
+      <SurveyCoverage />
       <Locations />
       <Staff />
       <Surveys />

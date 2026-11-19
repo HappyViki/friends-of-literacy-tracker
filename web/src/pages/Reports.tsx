@@ -8,7 +8,7 @@ import { ErrorBox, Loading, useAsync } from "../ui";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const today = () => new Date();
-const PRESETS: { key: string; label: string; range: () => [string, string] }[] = [
+export const PRESETS: { key: string; label: string; range: () => [string, string] }[] = [
   { key: "12m", label: "Last 12 months", range: () => { const t = today(); const f = new Date(t); f.setMonth(f.getMonth() - 12); f.setDate(f.getDate() + 1); return [iso(f), iso(t)]; } },
   { key: "ytd", label: "This year", range: () => [`${today().getFullYear()}-01-01`, iso(today())] },
   { key: "90d", label: "Last 90 days", range: () => { const f = today(); f.setDate(f.getDate() - 89); return [iso(f), iso(today())]; } },

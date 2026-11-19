@@ -238,6 +238,14 @@ check("inventory list includes reading level and language", inv.some((r: any) =>
 const all = (await S("GET", "/api/reports/summary")).body;
 check("report: returning counts families with 2+ visits", typeof all.families.returning === "number" && all.families.returning <= all.families.served, all.families);
 check("report: stock on hand", rep.stockOnHand.length >= 1, rep.stockOnHand);
+const cov1 = (await S("GET", `/api/reports/survey-coverage?locationId=${L1}`)).body;
+check("survey coverage: family with intake isn't flagged", cov1.familiesVisited === 1 && cov1.familiesSurveyed === 1 && cov1.familiesMissing === 0 && cov1.missing.length === 0, { ...cov1, missing: cov1.missing?.length });
+const cov2 = (await S("GET", `/api/reports/survey-coverage?locationId=${L2}`)).body;
+const raceWinner = race.find((r) => r.status === 201)?.body?.household?.householdId;
+check("survey coverage: visited family without intake is flagged", cov2.missing.some((m: any) => m.householdId === raceWinner && m.cardNumber && m.visits === 1), { missing: cov2.familiesMissing, visited: cov2.familiesVisited });
+const covFollow = (await S("GET", `/api/reports/survey-coverage?locationId=${L1}&survey=followup_6mo`)).body;
+check("survey coverage: per survey", covFollow.familiesSurveyed === 1 && covFollow.familiesMissing === 0, covFollow.familiesSurveyed);
+check("survey coverage: bad survey key -> 400", (await S("GET", "/api/reports/survey-coverage?survey=Bad Key")).status === 400);
 check("report: bad date -> 400", (await S("GET", "/api/reports/summary?from=last-week")).status === 400);
 
 const pre = await fetch(`${API}/api/giveaways`, { method: "OPTIONS", headers: { Origin: ORIGIN, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization,content-type" } });

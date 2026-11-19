@@ -9,12 +9,12 @@ const filterInput = z.object({
   locationId: z.coerce.number().int().positive().optional(),
 });
 
-type Filters = { from: string | null; to: string | null; loc: number | null };
+type Filters = { from: string | null; to: string | null; loc: number | null; survey?: string | null };
 
-/** Run SQL written with :from, :to and :loc placeholders, passing only the ones it uses. */
+/** Run SQL written with :from, :to, :loc and :survey placeholders, passing only the ones it uses. */
 async function q<T extends Record<string, unknown>>(text: string, f: Filters) {
   const names: (keyof Filters)[] = [];
-  const sql = text.replace(/:(from|to|loc)\b/g, (_, name: keyof Filters) => {
+  const sql = text.replace(/:(from|to|loc|survey)\b/g, (_, name: keyof Filters) => {
     if (!names.includes(name)) names.push(name);
     return "$" + (names.indexOf(name) + 1);
   });
@@ -205,5 +205,73 @@ export async function summary(query: Record<string, string | undefined>) {
       booksInHome: booksInHome,
       everyoneReads: everyoneReads[0],
     },
+  };
+}
+
+const coverageInput = filterInput.extend({
+  survey: z.string().regex(/^[a-z][a-z0-9_]*$/).default("intake"),
+});
+
+/**
+ * Survey coverage: of the families with a visit (giveaway) in the range, which have never answered
+ * the given survey. Counts families, not visits, since one family can visit many times.
+ */
+export async function surveyCoverage(query: Record<string, string | undefined>) {
+  const f = parse(coverageInput, query);
+  const p: Filters = { from: f.from ?? null, to: f.to ?? null, loc: f.locationId ?? null, survey: f.survey };
+  const inRange = (col: string) =>
+    `(:from::date is null or ${col} >= :from::date) and (:to::date is null or ${col} < :to::date + 1)`;
+  const visited = `
+    visited as (
+      select d.household_id, count(*)::int as visits, max(d.distributed_at) as last_visit_at,
+             (array_agg(l.code order by d.distributed_at desc))[1] as last_location
+      from distributions d join locations l on l.id = d.location_id
+      where ${inRange("d.distributed_at")} and (:loc::int is null or d.location_id = :loc)
+      group by d.household_id),
+    surveyed as (
+      select distinct r.household_id from survey_responses r join surveys sv on sv.id = r.survey_id
+      where sv.key = :survey)`;
+
+  const [[totals], [responses], missing] = await Promise.all([
+    q<{ visits: number; families_visited: number; families_surveyed: number }>(
+      `with ${visited}
+       select coalesce(sum(v.visits), 0)::int as visits, count(*)::int as families_visited,
+              count(s.household_id)::int as families_surveyed
+       from visited v left join surveyed s using (household_id)`,
+      p,
+    ),
+    q<{ responses: number }>(
+      `select count(*)::int as responses from survey_responses r join surveys sv on sv.id = r.survey_id
+       where sv.key = :survey and ${inRange("r.submitted_at")} and (:loc::int is null or r.location_id = :loc)`,
+      p,
+    ),
+    q(
+      `with ${visited}
+       select h.id as "householdId", c.number as "cardNumber", g.first_name as "firstName", g.last_name as "lastName",
+              g.email, g.phone, h.zip_code as "zipCode", v.visits, v.last_visit_at as "lastVisitAt",
+              v.last_location as "lastLocation"
+       from visited v
+       join households h on h.id = v.household_id
+       left join surveyed s on s.household_id = v.household_id
+       left join library_cards c on c.household_id = h.id and c.status = 'active'
+       left join lateral (select first_name, last_name, email, phone from guardians
+                          where household_id = h.id order by created_at limit 1) g on true
+       where s.household_id is null
+       order by v.visits desc, v.last_visit_at desc
+       limit 1000`,
+      p,
+    ),
+  ]);
+
+  const missingCount = totals.families_visited - totals.families_surveyed;
+  return {
+    filters: f,
+    visits: totals.visits,
+    surveyResponses: responses.responses,
+    familiesVisited: totals.families_visited,
+    familiesSurveyed: totals.families_surveyed,
+    familiesMissing: missingCount,
+    coveragePercent: totals.families_visited ? Math.round((1000 * totals.families_surveyed) / totals.families_visited) / 10 : null,
+    missing,
   };
 }

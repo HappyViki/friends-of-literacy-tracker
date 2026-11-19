@@ -44,6 +44,13 @@ export function FamilyPage({ householdId }: { householdId: string }) {
         </section>
       )}
 
+      {!taken.has("intake") && (
+        <Notice kind="warn">
+          This family hasn't done the intake survey yet.{" "}
+          <a href={`#/family/${f.householdId}/survey/intake`}>Take it now</a> — it only takes a minute.
+        </Notice>
+      )}
+
       <div className="actions sticky-actions">
         <a className="button primary" href={`#/family/${f.householdId}/give`}>
           🎁 Give books
