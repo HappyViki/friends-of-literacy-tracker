@@ -223,7 +223,7 @@ check("answer a multi-choice question", multi.status === 201, multi.body);
 
 // ---- family detail + reports ----------------------------------------------------------------------
 const detail = (await S("GET", `/api/households/${fam.householdId}`)).body;
-check("family detail: books received, giveaways, surveys", detail.booksReceived === 2 && detail.giveaways.length === 1 && detail.surveyResponses.length === 3 && detail.cards.length === 2, { books: detail.booksReceived, visits: detail.giveaways.length, surveys: detail.surveyResponses.length });
+check("family detail: books received, giveaways, surveys", detail.giveaways[0]?.books?.every((b: any) => "readingLevel" in b && "language" in b) && detail.booksReceived === 2 && detail.giveaways.length === 1 && detail.surveyResponses.length === 3 && detail.cards.length === 2, { books: detail.booksReceived, visits: detail.giveaways.length, surveys: detail.surveyResponses.length });
 const rep = (await S("GET", `/api/reports/summary?locationId=${L1}`)).body;
 check("report: books given at location", rep.booksGivenAway?.books === 2 && rep.families?.served === 1, rep.booksGivenAway && { books: rep.booksGivenAway.books, families: rep.families });
 check("report: by condition and category", rep.booksGivenAway.byCondition.length === 2 && rep.booksGivenAway.byCategory.length >= 1, rep.booksGivenAway.byCategory);

@@ -211,6 +211,8 @@ export async function detail(householdId: string) {
         isbn: distributionItems.isbn,
         title: books.title,
         category: books.category,
+        readingLevel: books.readingLevel,
+        language: books.language,
         condition: distributionItems.condition,
         quantity: distributionItems.quantity,
         childId: distributionItems.childId,
@@ -245,7 +247,7 @@ export async function detail(householdId: string) {
   const giveaways = new Map<number, { distributionId: number; distributedAt: Date; location: string; books: unknown[] }>();
   for (const v of visits) {
     const g = giveaways.get(v.distributionId) ?? { distributionId: v.distributionId, distributedAt: v.distributedAt, location: v.location, books: [] };
-    g.books.push({ isbn: v.isbn, title: v.title, category: v.category, condition: v.condition, quantity: v.quantity, forChild: v.childId ? kidName.get(v.childId) ?? null : null });
+    g.books.push({ isbn: v.isbn, title: v.title, category: v.category, readingLevel: v.readingLevel, language: v.language, condition: v.condition, quantity: v.quantity, forChild: v.childId ? kidName.get(v.childId) ?? null : null });
     giveaways.set(v.distributionId, g);
   }
   const surveysOut = new Map<number, { responseId: number; survey: string; surveyName: string; submittedAt: Date; answers: Record<string, unknown> }>();
