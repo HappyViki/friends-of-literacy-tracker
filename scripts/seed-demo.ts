@@ -284,7 +284,7 @@ async function seed() {
   const known = new Set(langRows.rows.map((r) => r.code));
   for (const l of [...Object.keys(NAMES), "asl"]) if (!known.has(l)) throw new Error(`Language ${l} missing; run npm run db:seed first`);
   const qRows = await db.query<{ survey: string; key: string; id: number }>(
-    `select s.key as survey, q.key, q.id from survey_questions q join surveys s on s.id = q.survey_id where s.key in ('intake', 'followup_6mo')`,
+    `select s.key as survey, q.key, q.id from survey_questions q join surveys s on s.id = q.survey_id where s.key in ('intake', 'returning') and q.retired_at is null`,
   );
   const qid = (survey: string, key: string) => {
     const r = qRows.rows.find((x) => x.survey === survey && x.key === key);
@@ -292,7 +292,7 @@ async function seed() {
     return r.id;
   };
   const surveyId = Object.fromEntries(
-    (await db.query<{ key: string; id: number }>(`select key, id from surveys where key in ('intake', 'followup_6mo')`)).rows.map((r) => [r.key, r.id]),
+    (await db.query<{ key: string; id: number }>(`select key, id from surveys where key in ('intake', 'returning')`)).rows.map((r) => [r.key, r.id]),
   );
 
   // Locations
@@ -591,46 +591,73 @@ async function seed() {
   );
 
   // ---------------------------------------------------------------- surveys
-  const BIH = ["0", "1-10", "11-25", "26-50", "51-100", "100+"];
-  const responses: { id?: number; survey: string; f: Family; loc: LocKey; t: number; answers: [number, "n" | "b" | "t", unknown][] }[] = [];
-  const COMMENTS = [
-    "My daughter asks for the dinosaur books every night.",
-    "Gracias por los libros en español, a mis hijos les encantan.",
-    "We read before bed now almost every day.",
-    "More chapter books for my oldest please!",
-    "The bilingual books help me read with my kids.",
-    "My son started reading to his little sister.",
-    "Nos gustaría más libros de cuentos para bebés.",
-    "Thank you, the market tent is so easy to get to.",
+  const BIH = ["0", "1-10", "11-25", "26+"];
+  const responses: { id?: number; survey: string; f: Family; loc: LocKey; t: number; answers: [number, "n" | "b" | "t" | "c", unknown][] }[] = [];
+  const HEARD = ["school", "social_media", "word_of_mouth", "pediatrician", "email", "other"] as const;
+  const HEARD_OTHER = ["Library newsletter", "Saw the tent at the market", "Church bulletin", "Flyer at the clinic", "WIC office"];
+  const WHY = [
+    "My kids love books and we can't afford many.",
+    "Queremos que nuestros hijos lean más en casa.",
+    "A friend told me about the free books.",
+    "My son is starting kindergarten and I want him ready.",
+    "We just moved here and are looking for activities.",
   ];
+  const RESOURCES = [
+    "Information about ESL classes for parents.",
+    "Ayuda con clases de inglés.",
+    "Summer programs for kids.",
+    "Help finding a pediatrician.",
+    "Food pantry locations.",
+  ];
+  const IDEAS = [
+    "Story time in Spanish!",
+    "A reading challenge with prizes.",
+    "More books for toddlers.",
+    "Author visits.",
+    "A quiet reading corner with bean bags.",
+    "Book swaps for older kids.",
+  ];
+  const DAYS_CHOICE = (d: number) => (d <= 0 ? "0" : `${Math.min(5, d)}+`);
+  const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(n)));
   for (const f of families) {
     if (!chance(0.84)) continue;
-    const base = f.lang === "en" ? 3 : 2;
-    let bih = Math.min(5, Math.max(0, weighted([[base - 2, 2], [base - 1, 4], [base, 3], [base + 1, 1]] as const)));
+    const base = f.lang === "en" ? 2 : 1;
+    let bih = clamp(weighted([[base - 1, 3], [base, 4], [base + 1, 2]] as const), 0, 3);
     if (f.lang !== "en" && f.lang !== "es") bih = Math.max(0, bih - 1);
-    const everyone = chance(f.lang === "en" ? 0.9 : 0.72);
-    let days = Math.min(7, Math.max(0, Math.round(weighted([[0, 1], [1, 3], [2, 4], [3, 4], [4, 3], [5, 2], [7, 1]] as const) - (bih < 1 ? 1 : 0))));
-    responses.push({
-      survey: "intake", f, loc: f.home, t: f.signedUp + int(2, 15) * 60_000,
-      answers: [[qid("intake", "books_in_home"), "t", BIH[bih]], [qid("intake", "everyone_reads"), "b", everyone], [qid("intake", "read_days_per_week"), "n", days]],
-    });
-    // Six-month follow-up for families who came back, a little better on average.
-    const followAt = f.signedUp + int(170, 205) * DAY;
-    const cameBack = dists.some((d) => d.family === f && d.t > f.signedUp + 30 * DAY);
-    if (followAt < NOW - DAY && cameBack && chance(0.8)) {
-      const loc = f.home;
-      const day = atHour(openDay(loc, followAt) ?? followAt);
-      if (day < NOW) {
-        bih = Math.min(5, bih + weighted([[0, 4], [1, 5], [2, 1]] as const));
-        days = Math.min(7, Math.max(0, days + weighted([[-1, 1], [0, 3], [1, 4], [2, 2]] as const)));
-        const answers: [number, "n" | "b" | "t", unknown][] = [
-          [qid("followup_6mo", "books_in_home"), "t", BIH[bih]],
-          [qid("followup_6mo", "read_days_per_week"), "n", days],
-          [qid("followup_6mo", "child_enjoys_reading"), "n", Math.min(5, Math.max(1, Math.round(2.6 + days / 3 + (rand() - 0.5) * 1.5)))],
+    let days = clamp(weighted([[0, 2], [1, 3], [2, 4], [3, 4], [4, 2], [5, 2]] as const) - (bih < 1 ? 1 : 0), 0, 5);
+    let enjoys = clamp(4 + days * 0.8 + (rand() - 0.5) * 3, 1, 10);
+    const heard = HEARD.filter((h) => chance(h === "word_of_mouth" ? 0.45 : h === "school" ? 0.35 : h === "other" ? 0.08 : 0.15));
+    const intake: [number, "n" | "b" | "t" | "c", unknown][] = [
+      [qid("intake", "books_in_home"), "t", BIH[bih]],
+      [qid("intake", "read_days_per_week"), "t", DAYS_CHOICE(days)],
+      [qid("intake", "child_enjoys_reading"), "n", enjoys],
+    ];
+    if (heard.length) intake.push([qid("intake", "heard_about"), "c", heard]);
+    if (heard.includes("other")) intake.push([qid("intake", "heard_about_other"), "t", pick(HEARD_OTHER)]);
+    if (chance(0.35)) intake.push([qid("intake", "why_visit"), "t", pick(WHY)]);
+    if (chance(0.15)) intake.push([qid("intake", "other_resources"), "t", pick(RESOURCES)]);
+    responses.push({ survey: "intake", f, loc: f.home, t: f.signedUp + int(2, 15) * 60_000, answers: intake });
+    // Returning-visitor surveys every few months for families who came back, a little better each time.
+    let at = f.signedUp + int(80, 120) * DAY;
+    while (at < NOW - DAY) {
+      const cameBack = dists.some((d) => d.family === f && d.t > at - 60 * DAY && d.t <= at + 30 * DAY);
+      if (cameBack && chance(0.7)) {
+        const loc = f.home;
+        const day = atHour(openDay(loc, at) ?? at);
+        if (day >= NOW) break;
+        bih = clamp(bih + weighted([[0, 6], [1, 3]] as const), 0, 3);
+        days = clamp(days + weighted([[-1, 1], [0, 4], [1, 4]] as const), 0, 5);
+        enjoys = clamp(enjoys + weighted([[-1, 1], [0, 3], [1, 3], [2, 1]] as const), 1, 10);
+        const answers: [number, "n" | "b" | "t" | "c", unknown][] = [
+          [qid("returning", "visit_rating"), "n", weighted([[3, 1], [4, 4], [5, 7]] as const)],
+          [qid("returning", "books_in_home"), "t", BIH[bih]],
+          [qid("returning", "read_days_per_week"), "t", DAYS_CHOICE(days)],
+          [qid("returning", "child_enjoys_reading"), "n", enjoys],
         ];
-        if (chance(0.3)) answers.push([qid("followup_6mo", "comments"), "t", pick(COMMENTS)]);
-        responses.push({ survey: "followup_6mo", f, loc, t: day, answers });
+        if (chance(0.3)) answers.push([qid("returning", "ideas"), "t", pick(IDEAS)]);
+        responses.push({ survey: "returning", f, loc, t: day, answers });
       }
+      at += int(90, 130) * DAY;
     }
   }
   const respIds = await allocate(await serialSeq("survey_responses"), responses.length);
@@ -642,8 +669,10 @@ async function seed() {
     responses.map((r) => [r.id, surveyId[r.survey], r.f.id, firstGuardian.get(r.f.id) ?? null, locId[r.loc], new Date(r.t), BY]),
   );
   await insertMany(
-    "survey_answers (response_id, question_id, value_number, value_bool, value_text)",
-    responses.flatMap((r) => r.answers.map(([q, kind, v]) => [r.id, q, kind === "n" ? v : null, kind === "b" ? v : null, kind === "t" ? v : null])),
+    "survey_answers (response_id, question_id, value_number, value_bool, value_text, value_choices)",
+    responses.flatMap((r) =>
+      r.answers.map(([q, kind, v]) => [r.id, q, kind === "n" ? v : null, kind === "b" ? v : null, kind === "t" ? v : null, kind === "c" ? v : null]),
+    ),
   );
 
   // Final check, inside the transaction: no stock below zero anywhere.
@@ -656,7 +685,7 @@ async function seed() {
       `(${guardianRows.length} guardians, ${families.reduce((n, f) => n + f.children.length, 0)} children, ${cardRows.length} cards), ` +
       `${arrivals.filter((m) => m[4] === "donation").length} donation and ${arrivals.filter((m) => m[4] === "purchase").length} purchase stock rows, ` +
       `${dists.length} visits giving ${items} books, ${responses.filter((r) => r.survey === "intake").length} intake and ` +
-      `${responses.filter((r) => r.survey !== "intake").length} follow-up surveys`,
+      `${responses.filter((r) => r.survey !== "intake").length} returning-visitor surveys`,
   );
 }
 

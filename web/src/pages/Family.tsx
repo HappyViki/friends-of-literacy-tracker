@@ -48,7 +48,7 @@ export function FamilyPage({ householdId }: { householdId: string }) {
 
       {!taken.has("intake") && (
         <Notice kind="warn">
-          This family hasn't done the intake survey yet.{" "}
+          This family hasn't done the first-visit survey yet.{" "}
           <a href={`#/family/${f.householdId}/survey/intake`}>Take it now</a> — it only takes a minute.
         </Notice>
       )}

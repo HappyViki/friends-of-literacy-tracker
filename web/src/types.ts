@@ -170,12 +170,17 @@ export type Report = {
   };
   stockOnHand: { location: string; condition: string; on_hand: number; titles: number }[];
   surveys: {
-    readDaysPerWeek: {
-      average: number | null;
-      responses: number;
-      changeForReturningFamilies: { families: number; first_average: number | null; latest_average: number | null };
-    };
+    readDaysPerWeek: Benchmark;
+    childEnjoysReading: Benchmark;
+    visitRating: Benchmark;
     booksInHome: { answer: string; families: number }[];
     everyoneReads: { yes: number; no: number; percent_yes: number | null };
   };
+};
+
+/** A benchmark survey question: average in range, and first vs. latest answer for families with 2+ answers. */
+export type Benchmark = {
+  average: number | null;
+  responses: number;
+  changeForReturningFamilies: { families: number; first_average: number | null; latest_average: number | null };
 };

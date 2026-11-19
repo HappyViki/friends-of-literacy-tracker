@@ -21,6 +21,44 @@ async function q<T extends Record<string, unknown>>(text: string, f: Filters) {
   return (await pool.query<T>(sql, names.map((n) => f[n]))).rows;
 }
 
+/**
+ * A survey answer as a number: numeric answers as they are, and choices like "3+" or "0" as their
+ * number (so "5+" counts as 5). Other text answers are null. `a` is the survey_answers alias.
+ */
+export const ANSWER_NUMBER = (a = "a") => `coalesce(${a}.value_number, substring(${a}.value_text from '^([0-9]+)\\+?$')::numeric)`;
+
+/**
+ * A benchmark question (same key in every survey that asks it): its average in the range, and for
+ * families with two or more answers, their first answer vs. their latest (up to the range's end).
+ */
+async function benchmark(key: string, p: Filters, inRange: (col: string) => string) {
+  const filters = { ...p, survey: key };
+  const [[current], [change]] = await Promise.all([
+    q<{ average: number | null; responses: number }>(
+      `select round(avg(${ANSWER_NUMBER()}), 2)::float as average, count(${ANSWER_NUMBER()})::int as responses
+       from survey_answers a join survey_questions sq on sq.id = a.question_id join survey_responses r on r.id = a.response_id
+       where sq.key = :survey and ${inRange("r.submitted_at")} and (:loc::int is null or r.location_id = :loc)`,
+      filters,
+    ),
+    q<{ families: number; first_average: number | null; latest_average: number | null }>(
+      `with answers as (
+         select r.household_id, ${ANSWER_NUMBER()} as value,
+                row_number() over (partition by r.household_id order by r.submitted_at) as first_rank,
+                row_number() over (partition by r.household_id order by r.submitted_at desc) as last_rank,
+                count(*) over (partition by r.household_id) as n
+         from survey_answers a join survey_questions sq on sq.id = a.question_id join survey_responses r on r.id = a.response_id
+         where sq.key = :survey and ${ANSWER_NUMBER()} is not null and (:loc::int is null or r.location_id = :loc)
+           and (:to::date is null or r.submitted_at < :to::date + 1))
+       select count(distinct household_id)::int as families,
+              round(avg(value) filter (where first_rank = 1), 2)::float as first_average,
+              round(avg(value) filter (where last_rank = 1), 2)::float as latest_average
+       from answers where n >= 2`,
+      filters,
+    ),
+  ]);
+  return { ...current, changeForReturningFamilies: change };
+}
+
 export async function summary(query: Record<string, string | undefined>) {
   const f = parse(filterInput, query);
   const p: Filters = { from: f.from ?? null, to: f.to ?? null, loc: f.locationId ?? null };
@@ -38,8 +76,6 @@ export async function summary(query: Record<string, string | undefined>) {
     byAgeBracket,
     byAgeAndCategory,
     stock,
-    readDays,
-    readDaysChange,
     booksInHome,
     everyoneReads,
     byLanguage,
@@ -107,29 +143,6 @@ export async function summary(query: Record<string, string | undefined>) {
        where (:loc::int is null or s.location_id = :loc) group by 1, 2 order by 1, 2`,
       p,
     ),
-    // Survey answers, grouped by question key so every survey that asks it counts.
-    q(
-      `select round(avg(a.value_number), 2)::float as average, count(*)::int as responses
-       from survey_answers a join survey_questions sq on sq.id = a.question_id join survey_responses r on r.id = a.response_id
-       where sq.key = 'read_days_per_week' and ${inRange("r.submitted_at")} and (:loc::int is null or r.location_id = :loc)`,
-      p,
-    ),
-    // Families with at least two answers: their first answer vs. their latest.
-    q(
-      `with answers as (
-         select r.household_id, r.submitted_at, a.value_number,
-                row_number() over (partition by r.household_id order by r.submitted_at) as first_rank,
-                row_number() over (partition by r.household_id order by r.submitted_at desc) as last_rank,
-                count(*) over (partition by r.household_id) as n
-         from survey_answers a join survey_questions sq on sq.id = a.question_id join survey_responses r on r.id = a.response_id
-         where sq.key = 'read_days_per_week' and (:loc::int is null or r.location_id = :loc)
-           and (:to::date is null or r.submitted_at < :to::date + 1))
-       select count(distinct household_id)::int as families,
-              round(avg(value_number) filter (where first_rank = 1), 2)::float as first_average,
-              round(avg(value_number) filter (where last_rank = 1), 2)::float as latest_average
-       from answers where n >= 2`,
-      p,
-    ),
     // Latest answer per family.
     q(
       `select answer, count(*)::int as families from (
@@ -159,6 +172,10 @@ export async function summary(query: Record<string, string | undefined>) {
       p,
     ),
   ]);
+
+  const [readDays, enjoysReading, visitRating] = await Promise.all(
+    ["read_days_per_week", "child_enjoys_reading", "visit_rating"].map((key) => benchmark(key, p, inRange)),
+  );
 
   const [byReadingLevel, byBookLanguage, byAgeAndReadingLevel] = await Promise.all([
     q(
@@ -201,7 +218,9 @@ export async function summary(query: Record<string, string | undefined>) {
     },
     stockOnHand: stock,
     surveys: {
-      readDaysPerWeek: { ...readDays[0], changeForReturningFamilies: readDaysChange[0] },
+      readDaysPerWeek: readDays,
+      childEnjoysReading: enjoysReading,
+      visitRating,
       booksInHome: booksInHome,
       everyoneReads: everyoneReads[0],
     },
