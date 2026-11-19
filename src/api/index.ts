@@ -7,6 +7,7 @@ import { pool } from "./db.ts";
 import * as admin from "../services/admin.ts";
 import * as bookSvc from "../services/books.ts";
 import * as families from "../services/households.ts";
+import * as exportsSvc from "../services/exports.ts";
 import * as giveaways from "../services/giveaways.ts";
 import * as reports from "../services/reports.ts";
 import * as surveys from "../services/surveys.ts";
@@ -21,6 +22,7 @@ app.use(
     origin: (origin) => (allowedOrigins.includes(origin) ? origin : null),
     allowHeaders: ["Authorization", "Content-Type"],
     allowMethods: ["GET", "POST", "PATCH", "OPTIONS"],
+    exposeHeaders: ["X-Row-Count", "Content-Disposition"],
   }),
 );
 
@@ -51,6 +53,7 @@ api.get("/me", (c) => c.json(c.get("staff")));
 api.post("/households", async (c) => c.json(await families.intake(await json(c), c.get("staff")), 201));
 api.get("/households/search", async (c) => c.json(await families.search(c.req.query("q") ?? "", c.req.query("zip"))));
 api.get("/households/:id", async (c) => c.json(await families.detail(uuid(c.req.param("id")))));
+api.post("/households/:id/guardians", async (c) => c.json(await families.addGuardian(uuid(c.req.param("id")), await json(c)), 201));
 api.post("/households/:id/children", async (c) => c.json(await families.addChild(uuid(c.req.param("id")), await json(c)), 201));
 api.post("/households/:id/cards", async (c) => c.json(await families.replaceCard(uuid(c.req.param("id")), await json(c), c.get("staff")), 201));
 api.get("/cards/:number", async (c) => c.json(await families.byCard(c.req.param("number"))));
@@ -79,6 +82,16 @@ api.post("/surveys/:key/responses", async (c) =>
 
 // Reports
 api.get("/reports/summary", async (c) => c.json(await reports.summary(c.req.query())));
+// Bulk contact export (Mailchimp CSV): admins only, consented adults only.
+api.get("/exports/contacts", requireAdmin, async (c) => {
+  const { csv, count, filters } = await exportsSvc.contactsCsv(c.req.query());
+  const name = `fol-contacts-${filters.channel}-${new Date().toISOString().slice(0, 10)}.csv`;
+  return c.body(csv, 200, {
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="${name}"`,
+    "X-Row-Count": String(count),
+  });
+});
 api.get("/reports/survey-coverage", async (c) => c.json(await reports.surveyCoverage(c.req.query())));
 
 // Reference data and admin

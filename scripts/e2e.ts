@@ -109,6 +109,18 @@ const noContact = await S("POST", "/api/households", { locationId: L1, zipCode: 
 check("adult with no email or phone -> 400", noContact.status === 400, noContact.body?.error);
 check("bad ZIP -> 400", (await S("POST", "/api/households", { locationId: L1, zipCode: "787", guardians: [{ firstName: "X", phone: "5125550100" }] })).status === 400);
 
+// ---- adding adults (up to 4) -------------------------------------------------------------------
+const addAdult = (hid: string, body: unknown) => S("POST", `/api/households/${hid}/guardians`, body);
+const second = await addAdult(fam.householdId, { firstName: "Jorge", lastName: `Lopez${run}`, email: `jorge.${run}@example.com`, preferredLanguage: "es", contactConsent: false });
+check("add a second adult", second.status === 201 && second.body?.guardians?.length === 2, second.body?.error);
+check("adult with no email or phone -> 400", (await addAdult(fam.householdId, { firstName: "X" })).status === 400);
+const otherPhone = await addAdult(fam.householdId, { firstName: "X", phone: phoneDigits });
+check("phone already in this family -> 409", otherPhone.status === 409, otherPhone.body?.error);
+for (const n of [3, 4]) await addAdult(fam.householdId, { firstName: `Adult${n}`, email: `adult${n}.${run}@example.com` });
+const fifth = await addAdult(fam.householdId, { firstName: "Adult5", email: `adult5.${run}@example.com` });
+check("a fifth adult -> 409 (max 4)", fifth.status === 409 && /up to 4/.test(fifth.body?.error ?? ""), fifth.body?.error);
+check("unknown family -> 404", (await addAdult("00000000-0000-0000-0000-000000000000", { firstName: "X", email: `nobody.${run}@example.com` })).status === 404);
+
 // ---- finding the family again ---------------------------------------------------------------
 const find = async (q: string) => (await S("GET", `/api/households/search?q=${encodeURIComponent(q)}`));
 const byCard = await find(card);
@@ -247,6 +259,22 @@ const covFollow = (await S("GET", `/api/reports/survey-coverage?locationId=${L1}
 check("survey coverage: per survey", covFollow.familiesSurveyed === 1 && covFollow.familiesMissing === 0, covFollow.familiesSurveyed);
 check("survey coverage: bad survey key -> 400", (await S("GET", "/api/reports/survey-coverage?survey=Bad Key")).status === 400);
 check("report: bad date -> 400", (await S("GET", "/api/reports/summary?from=last-week")).status === 400);
+
+// ---- Mailchimp contact export (admins, consented adults only) ----------------------------------
+const exportCsv = async (token: string, q: string) => {
+  const res = await fetch(`${API}/api/exports/contacts?${q}`, { headers: { Authorization: `Bearer ${token}` } });
+  return { status: res.status, text: await res.text(), count: res.headers.get("x-row-count"), type: res.headers.get("content-type") };
+};
+check("staff can't export contacts -> 403", (await exportCsv(staff.token, "channel=email")).status === 403);
+const ex = await exportCsv(admin.token, `channel=email&locationId=${L1}`);
+const exLines = ex.text.trim().split("\r\n");
+check("export: Mailchimp CSV header", ex.status === 200 && /text\/csv/.test(ex.type ?? "") && exLines[0].startsWith('"Email Address","First Name","Last Name","Phone Number"'), exLines[0]);
+check("export: includes the consented adult", ex.text.includes(email.toLowerCase()), ex.count);
+check("export: leaves out adults who didn't consent", !ex.text.includes(`jorge.${run}@example.com`) && !ex.text.includes(`adult3.${run}@example.com`));
+check("export: row count header matches", Number(ex.count) === exLines.length - 1, [ex.count, exLines.length - 1]);
+const exPhone = await exportCsv(admin.token, `channel=phone&locationId=${L1}`);
+check("export: phone list has E.164 numbers", exPhone.text.includes(`+1${phoneDigits}`), exPhone.count);
+check("export: bad channel -> 400", (await exportCsv(admin.token, "channel=fax")).status === 400);
 
 const pre = await fetch(`${API}/api/giveaways`, { method: "OPTIONS", headers: { Origin: ORIGIN, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization,content-type" } });
 check("CORS preflight for the app origin", pre.headers.get("access-control-allow-origin") === ORIGIN);
