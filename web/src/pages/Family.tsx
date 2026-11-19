@@ -4,8 +4,10 @@ import { api } from "../auth";
 import { languageName, useApp } from "../context";
 import { LibraryCard } from "../LibraryCard";
 import type { Family, Survey } from "../types";
+import { AGE_RANGES } from "./Intake";
 import { ErrorBox, Loading, Notice, familyName, fmtDate, fmtDateTime, fmtPhone, fullName, plural, toApiError, useAsync } from "../ui";
 
+const MAX_ADULTS = 4;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function FamilyPage({ householdId }: { householdId: string }) {
@@ -79,6 +81,11 @@ export function FamilyPage({ householdId }: { householdId: string }) {
               </li>
             ))}
           </ul>
+          {f.guardians.length < MAX_ADULTS ? (
+            <AddAdult householdId={f.householdId} onDone={fam.set} />
+          ) : (
+            <p className="muted small">This family has the most adults allowed ({MAX_ADULTS}).</p>
+          )}
         </section>
 
         <section className="card">
@@ -330,5 +337,109 @@ function ReplaceCard({ householdId, onDone }: { householdId: string; onDone: (f:
         </div>
       )}
     </div>
+  );
+}
+
+function AddAdult({ householdId, onDone }: { householdId: string; onDone: (f: Family) => void }) {
+  const { languages } = useApp();
+  const blank = { firstName: "", lastName: "", email: "", phone: "", ageRange: "", preferredLanguage: "", contactConsent: false };
+  const [open, setOpen] = useState(false);
+  const [a, setA] = useState(blank);
+  const [error, setError] = useState<Error | null>(null);
+  const [busy, setBusy] = useState(false);
+  const set = (patch: Partial<typeof blank>) => setA((x) => ({ ...x, ...patch }));
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!a.email.trim() && !a.phone.trim()) return setError(new Error("Add an email or a phone number (either is fine)."));
+    setBusy(true);
+    setError(null);
+    try {
+      const fam = await api<Family>(`/api/households/${householdId}/guardians`, {
+        json: {
+          firstName: a.firstName,
+          lastName: a.lastName || null,
+          email: a.email || null,
+          phone: a.phone || null,
+          ageRange: a.ageRange || null,
+          preferredLanguage: a.preferredLanguage || null,
+          contactConsent: a.contactConsent,
+        },
+      });
+      onDone(fam);
+      setA(blank);
+      setOpen(false);
+    } catch (err) {
+      setError(toApiError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open)
+    return (
+      <button className="add" onClick={() => setOpen(true)}>
+        + Add an adult
+      </button>
+    );
+  return (
+    <form className="child" onSubmit={submit}>
+      <div className="grid2">
+        <div>
+          <label htmlFor="na-first">First name</label>
+          <input id="na-first" value={a.firstName} onChange={(e) => set({ firstName: e.target.value })} required autoFocus />
+        </div>
+        <div>
+          <label htmlFor="na-last">
+            Last name <span className="opt">optional</span>
+          </label>
+          <input id="na-last" value={a.lastName} onChange={(e) => set({ lastName: e.target.value })} />
+        </div>
+        <div>
+          <label htmlFor="na-email">Email</label>
+          <input id="na-email" type="email" value={a.email} onChange={(e) => set({ email: e.target.value })} autoComplete="off" />
+        </div>
+        <div>
+          <label htmlFor="na-phone">Phone</label>
+          <input id="na-phone" type="tel" value={a.phone} onChange={(e) => set({ phone: e.target.value })} autoComplete="off" />
+        </div>
+        <div>
+          <label htmlFor="na-age">Age range</label>
+          <select id="na-age" value={a.ageRange} onChange={(e) => set({ ageRange: e.target.value })}>
+            <option value="">—</option>
+            {AGE_RANGES.map((r) => (
+              <option key={r} value={r}>
+                {r === "prefer_not_to_say" ? "Prefer not to say" : r}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="na-lang">Preferred language</label>
+          <select id="na-lang" value={a.preferredLanguage} onChange={(e) => set({ preferredLanguage: e.target.value })}>
+            <option value="">—</option>
+            {languages.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <p className="hint">An email or a phone number is required (either is fine).</p>
+      <label className="check">
+        <input type="checkbox" checked={a.contactConsent} onChange={(e) => set({ contactConsent: e.target.checked })} /> OK to contact about
+        events and new books
+      </label>
+      <ErrorBox error={error} />
+      <div className="actions">
+        <button className="primary" disabled={busy}>
+          {busy ? "Adding…" : "Add adult"}
+        </button>
+        <button type="button" className="ghost" onClick={() => setOpen(false)}>
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }

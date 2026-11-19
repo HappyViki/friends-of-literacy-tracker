@@ -6,7 +6,7 @@ import { LibraryCard } from "../LibraryCard";
 import type { Family, FamilySummary } from "../types";
 import { ErrorBox, Notice, familyName, fmtPhone, fullName, go, toApiError } from "../ui";
 
-const AGE_RANGES = ["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "prefer_not_to_say"] as const;
+export const AGE_RANGES = ["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "prefer_not_to_say"] as const;
 const COMMON_LANGS = ["en", "es"];
 
 type Adult = { firstName: string; lastName: string; email: string; phone: string; ageRange: string; preferredLanguage: string; contactConsent: boolean };

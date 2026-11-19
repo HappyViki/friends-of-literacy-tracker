@@ -378,3 +378,46 @@ export async function addChild(householdId: string, body: unknown) {
   return detail(householdId);
 }
 
+
+const MAX_ADULTS = 4;
+
+/** Add an adult to an existing family (up to four). Their email and phone must not belong to another adult. */
+export async function addGuardian(householdId: string, body: unknown) {
+  const g = parse(guardianInput, body);
+  const taken = await findByContacts(g.email ? [g.email] : [], g.phone ? [g.phone] : []);
+  if (taken.length) {
+    const sameFamily = taken.includes(householdId);
+    throw new HttpError(
+      409,
+      sameFamily ? "Someone in this family already uses that email or phone number" : "That email or phone number belongs to another family",
+      { households: await Promise.all(taken.map(summary)) },
+    );
+  }
+  try {
+    await db.transaction(async (tx) => {
+      // Lock the family so two staff can't push it past the limit at the same moment.
+      const [h] = await tx.select({ id: households.id }).from(households).where(eq(households.id, householdId)).for("update");
+      if (!h) throw new HttpError(404, "Family not found");
+      const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(guardians).where(eq(guardians.householdId, householdId));
+      if (n >= MAX_ADULTS) throw new HttpError(409, `A family can have up to ${MAX_ADULTS} adults`);
+      await tx.insert(guardians).values({
+        householdId,
+        firstName: g.firstName,
+        lastName: g.lastName,
+        email: g.email,
+        phone: g.phone,
+        ageRange: g.ageRange ?? null,
+        preferredLanguageCode: g.preferredLanguage ?? null,
+        contactConsent: g.contactConsent ?? false,
+      });
+      if (g.preferredLanguage) {
+        await tx.insert(householdLanguages).values({ householdId, languageCode: g.preferredLanguage }).onConflictDoNothing();
+      }
+    });
+  } catch (err) {
+    if (pgCode(err) === "23505") throw new HttpError(409, "That email or phone number was just registered to someone else");
+    if (pgCode(err) === "23503") throw new HttpError(400, "Unknown language code");
+    throw err;
+  }
+  return detail(householdId);
+}
