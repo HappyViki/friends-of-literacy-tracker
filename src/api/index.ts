@@ -7,6 +7,7 @@ import { pool } from "./db.ts";
 import * as admin from "../services/admin.ts";
 import * as bookSvc from "../services/books.ts";
 import * as families from "../services/households.ts";
+import * as dataExport from "../services/dataExport.ts";
 import * as exportsSvc from "../services/exports.ts";
 import * as giveaways from "../services/giveaways.ts";
 import * as reports from "../services/reports.ts";
@@ -90,6 +91,14 @@ api.get("/exports/contacts", requireAdmin, async (c) => {
     "Content-Type": "text/csv; charset=utf-8",
     "Content-Disposition": `attachment; filename="${name}"`,
     "X-Row-Count": String(count),
+  });
+});
+// Excel workbook for building your own reports in Excel or Google Sheets: admins only.
+api.get("/exports/workbook", requireAdmin, async (c) => {
+  const { buffer, name } = await dataExport.workbook(c.req.query());
+  return c.body(new Uint8Array(buffer), 200, {
+    "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "Content-Disposition": `attachment; filename="${name}"`,
   });
 });
 api.get("/reports/survey-coverage", async (c) => c.json(await reports.surveyCoverage(c.req.query())));

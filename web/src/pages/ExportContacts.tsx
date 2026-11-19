@@ -1,6 +1,6 @@
 // Admin: download a Mailchimp-ready CSV of adults who agreed to be contacted.
 import { useState } from "react";
-import { ApiError, getJwt } from "../auth";
+import { downloadFile } from "../auth";
 import { useApp } from "../context";
 import { ErrorBox, Notice } from "../ui";
 
@@ -26,25 +26,12 @@ export function ExportContacts() {
     setError(null);
     setDone(null);
     try {
-      const token = await getJwt();
-      if (!token) throw new ApiError("You're signed out. Sign in again.", 401);
       const q = new URLSearchParams({ channel });
       if (locationId) q.set("locationId", locationId);
       if (language) q.set("language", language);
       if (visitedSince) q.set("visitedSince", visitedSince);
-      const res = await fetch(`${__API_URL__}/api/exports/contacts?${q}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new ApiError(json.error ?? `Export failed (HTTP ${res.status})`, res.status);
-      }
-      const count = Number(res.headers.get("X-Row-Count") ?? "0");
-      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "fol-contacts.csv";
-      const blob = await res.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = name;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      const { name, headers } = await downloadFile(`/api/exports/contacts?${q}`, "fol-contacts.csv");
+      const count = Number(headers.get("X-Row-Count") ?? "0");
       setDone(`Downloaded ${count.toLocaleString()} ${count === 1 ? "contact" : "contacts"} (${name}).`);
     } catch (err) {
       setError(err as Error);

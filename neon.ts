@@ -20,6 +20,8 @@ export default defineConfig({
         DECISIONS_MODEL: { value: process.env.DECISIONS_MODEL, required: false },
         // Optional: comma-separated AI Gateway model IDs (default "claude-haiku-5-5,gpt-5-nano").
         GATEWAY_MODELS: { value: process.env.GATEWAY_MODELS, required: false },
+        // Time zone for dates in the data export (an evening visit stays on its own day).
+        ORG_TIMEZONE: { value: process.env.ORG_TIMEZONE ?? "America/Los_Angeles", required: false },
         // Optional: Google Books key; without one Google rate-limits and Open Library answers.
         GOOGLE_BOOKS_API_KEY: { value: process.env.GOOGLE_BOOKS_API_KEY, required: false },
       },

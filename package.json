@@ -24,6 +24,7 @@
     "@neon/env": "^2.1.7",
     "@neon/functions": "^0.11.0",
     "drizzle-orm": "^0.45.4",
+    "exceljs": "^4.4.0",
     "hono": "^4.13.19",
     "jose": "^6.2.18",
     "jsbarcode": "^3.11.6",

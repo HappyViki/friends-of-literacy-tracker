@@ -83,3 +83,29 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   }
   return json as T;
 }
+
+/** Download a file from the staff API (e.g. an export) and save it in the browser. Returns its name and response headers. */
+export async function downloadFile(path: string, fallbackName: string): Promise<{ name: string; headers: Headers }> {
+  const token = await getJwt();
+  if (!token) throw new ApiError("You're signed out. Sign in again.", 401);
+  let res: Response;
+  try {
+    res = await fetch(`${__API_URL__}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  } catch {
+    throw new ApiError("Can't reach the server. Check the internet connection and try again.", 0);
+  }
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new ApiError(json.error ?? `Download failed (HTTP ${res.status})`, res.status, json.code);
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? fallbackName;
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return { name, headers: res.headers };
+}

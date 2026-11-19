@@ -62,6 +62,11 @@ http://localhost:5173 against the API deployed to the linked branch (the API all
 - **Reports**: KPIs and charts filtered by date range and location, each with a table view,
   including books by reading level, by book language, and reading level by child's age.
 - **Admin**: locations, staff and surveys.
+- **Admin → Build your own reports**: one Excel workbook (opens in Excel and Google Sheets) for pivot
+  tables: Books given (one row per book, joined with family, child age, genre, reading level and
+  language), Visits, Families (with latest survey answers), Adults, Children, Survey answers (one row
+  per answer), Books received and Stock now, plus a Read me tab describing every column. Filtered by
+  date range and location; dates use `ORG_TIMEZONE` (default America/Los_Angeles). Admins only.
 
 It is laid out for phones and tablets as well as desktops.
 
