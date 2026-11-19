@@ -46,10 +46,11 @@ export function FamilyPage({ householdId }: { householdId: string }) {
         </section>
       )}
 
-      {!taken.has("intake") && (
+      {f.surveyDue && (
         <Notice kind="warn">
-          This family hasn't done the first-visit survey yet.{" "}
-          <a href={`#/family/${f.householdId}/survey/intake`}>Take it now</a> — it only takes a minute.
+          <b>{f.surveyDue.survey === "intake" ? "First-visit survey not done yet." : "Returning-visitors survey is due."}</b>{" "}
+          {f.surveyDue.survey === "returning" && <>{f.surveyDue.reason}. </>}
+          <a href={`#/family/${f.householdId}/survey/${f.surveyDue.survey}`}>Ask it now</a> — it only takes a minute.
         </Notice>
       )}
 
@@ -57,12 +58,19 @@ export function FamilyPage({ householdId }: { householdId: string }) {
         <a className="button primary" href={`#/family/${f.householdId}/give`}>
           🎁 Give books
         </a>
-        {(surveys.data ?? []).map((s) => (
-          <a key={s.key} className="button secondary" href={`#/family/${f.householdId}/survey/${s.key}`}>
-            📝 {s.name}
-            {taken.has(s.key) ? " (again)" : ""}
+        {f.surveyDue && (
+          <a className="button primary" href={`#/family/${f.householdId}/survey/${f.surveyDue.survey}`}>
+            📝 {f.surveyDue.name}
           </a>
-        ))}
+        )}
+        {(surveys.data ?? [])
+          .filter((s) => s.key !== f.surveyDue?.survey)
+          .map((s) => (
+            <a key={s.key} className="button secondary" href={`#/family/${f.householdId}/survey/${s.key}`}>
+              📝 {s.name}
+              {taken.has(s.key) ? " (again)" : ""}
+            </a>
+          ))}
       </div>
 
       <div className="two-col">

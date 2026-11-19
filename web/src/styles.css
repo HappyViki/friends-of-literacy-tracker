@@ -1391,3 +1391,26 @@ dd {
 .link.danger {
   color: #b42318;
 }
+
+.result-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.badge.warn {
+  background: #fff4d6;
+  color: #7a4d00;
+}
+
+.comments {
+  max-height: 340px;
+  overflow-y: auto;
+}
+.comments li {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
+}
+.comments li p {
+  margin: 0 0 2px;
+}

@@ -23,6 +23,7 @@ import type { Staff } from "../api/auth.ts";
 import { formatCardNumber, looksLikeCardNumber, parseCardNumber } from "../domain/cards.ts";
 import { normalizeEmail, normalizePhone } from "../domain/contact.ts";
 import { ageBracket, ageOn, birthYearFromAge } from "../domain/age.ts";
+import { surveyDueFor } from "./surveyDue.ts";
 
 const currentYear = () => new Date().getUTCFullYear();
 
@@ -181,6 +182,7 @@ export async function summary(householdId: string) {
     zipCode: h.zipCode,
     guardians: g,
     children: c.map((x) => x.firstName),
+    surveyDue: (await surveyDueFor([householdId])).get(householdId) ?? null,
   };
 }
 
@@ -290,6 +292,7 @@ export async function detail(householdId: string) {
     booksReceived: visits.reduce((n, v) => n + v.quantity, 0),
     giveaways: [...giveaways.values()],
     surveyResponses: [...surveysOut.values()],
+    surveyDue: (await surveyDueFor([householdId])).get(householdId) ?? null,
   };
 }
 

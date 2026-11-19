@@ -99,7 +99,7 @@ export function Intake() {
           <h2>Next steps</h2>
           <div className="actions">
             <a className="button primary" href={`#/family/${created.householdId}/survey/intake`}>
-              📝 Take the intake survey
+              📝 First-visit survey
             </a>
             <a className="button secondary" href={`#/family/${created.householdId}/give`}>
               🎁 Give books

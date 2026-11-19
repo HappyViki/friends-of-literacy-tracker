@@ -87,7 +87,14 @@ export function FrontDesk() {
                         {[f.guardians[0]?.email, fmtPhone(f.guardians[0]?.phone ?? null)].filter(Boolean).join(" · ")}
                       </span>
                     </div>
-                    <span className="card-number">{f.cardNumber ?? "no active card"}</span>
+                    <span className="result-side">
+                      <span className="card-number">{f.cardNumber ?? "no active card"}</span>
+                      {f.surveyDue && (
+                        <span className="badge warn" title={f.surveyDue.reason}>
+                          📝 {f.surveyDue.survey === "intake" ? "First-visit survey" : "Survey due"}
+                        </span>
+                      )}
+                    </span>
                   </a>
                 </li>
               ))}

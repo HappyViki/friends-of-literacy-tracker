@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { pool } from "../api/db.ts";
 import { parse } from "../api/errors.ts";
+import { RETURNING_EVERY_DAYS } from "./surveyDue.ts";
 
 const filterInput = z.object({
   from: z.iso.date().optional(),
@@ -9,12 +10,12 @@ const filterInput = z.object({
   locationId: z.coerce.number().int().positive().optional(),
 });
 
-type Filters = { from: string | null; to: string | null; loc: number | null; survey?: string | null };
+type Filters = { from: string | null; to: string | null; loc: number | null; survey?: string | null; days?: number };
 
 /** Run SQL written with :from, :to, :loc and :survey placeholders, passing only the ones it uses. */
 async function q<T extends Record<string, unknown>>(text: string, f: Filters) {
   const names: (keyof Filters)[] = [];
-  const sql = text.replace(/:(from|to|loc|survey)\b/g, (_, name: keyof Filters) => {
+  const sql = text.replace(/:(from|to|loc|survey|days)\b/g, (_, name: keyof Filters) => {
     if (!names.includes(name)) names.push(name);
     return "$" + (names.indexOf(name) + 1);
   });
@@ -176,6 +177,32 @@ export async function summary(query: Record<string, string | undefined>) {
   const [readDays, enjoysReading, visitRating] = await Promise.all(
     ["read_days_per_week", "child_enjoys_reading", "visit_rating"].map((key) => benchmark(key, p, inRange)),
   );
+  const surveyRange = `${inRange("r.submitted_at")} and (:loc::int is null or r.location_id = :loc)`;
+  const [heardAbout, comments] = await Promise.all([
+    // How families heard about the program (check all that apply), counted per family answer.
+    q<{ choice: string; label: string; families: number }>(
+      `select v as choice,
+              coalesce((select ch->'label'->>'en' from survey_questions sq2, jsonb_array_elements(sq2.choices) ch
+                        where sq2.id = a.question_id and ch->>'value' = v), v) as label,
+              count(distinct r.household_id)::int as families
+       from survey_answers a join survey_questions sq on sq.id = a.question_id join survey_responses r on r.id = a.response_id,
+            unnest(a.value_choices) v
+       where sq.key = 'heard_about' and ${surveyRange}
+       group by 1, 2 order by 3 desc`,
+      p,
+    ),
+    // Latest written answers worth reading: resource requests, ideas, why they came, "other".
+    q<{ key: string; question: string; text: string; submittedAt: string; householdId: string; cardNumber: string | null; location: string }>(
+      `select sq.key, sq.prompt->>'en' as question, a.value_text as text, r.submitted_at as "submittedAt",
+              r.household_id as "householdId", c.number as "cardNumber", l.code as location
+       from survey_answers a join survey_questions sq on sq.id = a.question_id join survey_responses r on r.id = a.response_id
+       join locations l on l.id = r.location_id
+       left join library_cards c on c.household_id = r.household_id and c.status = 'active'
+       where sq.key in ('other_resources', 'ideas', 'why_visit', 'heard_about_other') and a.value_text is not null and ${surveyRange}
+       order by r.submitted_at desc limit 60`,
+      p,
+    ),
+  ]);
 
   const [byReadingLevel, byBookLanguage, byAgeAndReadingLevel] = await Promise.all([
     q(
@@ -221,6 +248,8 @@ export async function summary(query: Record<string, string | undefined>) {
       readDaysPerWeek: readDays,
       childEnjoysReading: enjoysReading,
       visitRating,
+      heardAbout,
+      comments,
       booksInHome: booksInHome,
       everyoneReads: everyoneReads[0],
     },
@@ -232,12 +261,16 @@ const coverageInput = filterInput.extend({
 });
 
 /**
- * Survey coverage: of the families with a visit (giveaway) in the range, which have never answered
- * the given survey. Counts families, not visits, since one family can visit many times.
+ * Survey coverage: of the families with a visit (giveaway) in the range, which still need the survey.
+ * Counts families, not visits, since one family can visit many times.
+ * - Most surveys: families who have never answered it.
+ * - "returning": asked every RETURNING_SURVEY_EVERY_DAYS, so of the families who did the first-visit
+ *   survey, those whose latest survey (first visit or returning) is older than that: they're due.
  */
 export async function surveyCoverage(query: Record<string, string | undefined>) {
   const f = parse(coverageInput, query);
-  const p: Filters = { from: f.from ?? null, to: f.to ?? null, loc: f.locationId ?? null, survey: f.survey };
+  const due = f.survey === "returning";
+  const p: Filters = { from: f.from ?? null, to: f.to ?? null, loc: f.locationId ?? null, survey: f.survey, days: RETURNING_EVERY_DAYS };
   const inRange = (col: string) =>
     `(:from::date is null or ${col} >= :from::date) and (:to::date is null or ${col} < :to::date + 1)`;
   const visited = `
@@ -246,10 +279,15 @@ export async function surveyCoverage(query: Record<string, string | undefined>) 
              (array_agg(l.code order by d.distributed_at desc))[1] as last_location
       from distributions d join locations l on l.id = d.location_id
       where ${inRange("d.distributed_at")} and (:loc::int is null or d.location_id = :loc)
+        ${due ? "and exists (select 1 from survey_responses r join surveys sv on sv.id = r.survey_id where r.household_id = d.household_id and sv.key = 'intake')" : ""}
       group by d.household_id),
+    last_survey as (
+      select r.household_id, max(r.submitted_at) as at from survey_responses r join surveys sv on sv.id = r.survey_id
+      where sv.key in ('intake', 'returning', :survey) group by r.household_id),
     surveyed as (
-      select distinct r.household_id from survey_responses r join surveys sv on sv.id = r.survey_id
-      where sv.key = :survey)`;
+      ${due
+        ? "select household_id from last_survey where at >= now() - make_interval(days => :days::int)"
+        : "select distinct r.household_id from survey_responses r join surveys sv on sv.id = r.survey_id where sv.key = :survey"})`;
 
   const [[totals], [responses], missing] = await Promise.all([
     q<{ visits: number; families_visited: number; families_surveyed: number }>(
@@ -268,8 +306,9 @@ export async function surveyCoverage(query: Record<string, string | undefined>) 
       `with ${visited}
        select h.id as "householdId", c.number as "cardNumber", g.first_name as "firstName", g.last_name as "lastName",
               g.email, g.phone, h.zip_code as "zipCode", v.visits, v.last_visit_at as "lastVisitAt",
-              v.last_location as "lastLocation"
+              v.last_location as "lastLocation", ls.at as "lastSurveyAt"
        from visited v
+       left join last_survey ls on ls.household_id = v.household_id
        join households h on h.id = v.household_id
        left join surveyed s on s.household_id = v.household_id
        left join library_cards c on c.household_id = h.id and c.status = 'active'
@@ -287,6 +326,9 @@ export async function surveyCoverage(query: Record<string, string | undefined>) 
     filters: f,
     visits: totals.visits,
     surveyResponses: responses.responses,
+    // "due": asked again every dueAfterDays; "ever": answered at least once.
+    mode: due ? "due" : "ever",
+    dueAfterDays: due ? RETURNING_EVERY_DAYS : null,
     familiesVisited: totals.families_visited,
     familiesSurveyed: totals.families_surveyed,
     familiesMissing: missingCount,

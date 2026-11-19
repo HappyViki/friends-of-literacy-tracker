@@ -22,6 +22,8 @@ export default defineConfig({
         GATEWAY_MODELS: { value: process.env.GATEWAY_MODELS, required: false },
         // Time zone for dates in the data export (an evening visit stays on its own day).
         ORG_TIMEZONE: { value: process.env.ORG_TIMEZONE ?? "America/Los_Angeles", required: false },
+        // Ask the returning-visitors survey again once a family's last survey is this many days old.
+        RETURNING_SURVEY_EVERY_DAYS: { value: process.env.RETURNING_SURVEY_EVERY_DAYS ?? "90", required: false },
         // Optional: Google Books key; without one Google rate-limits and Open Library answers.
         GOOGLE_BOOKS_API_KEY: { value: process.env.GOOGLE_BOOKS_API_KEY, required: false },
       },

@@ -89,6 +89,12 @@ export function GiveBooks({ householdId }: { householdId: string }) {
           </b>{" "}
           They've received {plural(done.family.booksReceived, "book")} in all. Happy reading! 📚
         </Notice>
+        {done.family.surveyDue && (
+          <Notice kind="warn">
+            <b>While they're here:</b> {done.family.surveyDue.survey === "intake" ? "they haven't done the first-visit survey." : `the returning-visitors survey is due (${done.family.surveyDue.reason.toLowerCase()}).`}{" "}
+            <a href={`#/family/${householdId}/survey/${done.family.surveyDue.survey}`}>Ask it now</a>
+          </Notice>
+        )}
         <div className="actions">
           <button className="primary" onClick={() => setDone(null)}>
             Give more books

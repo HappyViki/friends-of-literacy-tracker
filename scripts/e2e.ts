@@ -231,6 +231,18 @@ const follow = await S("POST", "/api/surveys/returning/responses", {
 });
 check("submit returning-visitor survey", follow.status === 201 && follow.body?.answered === 5, follow.body);
 check("visit rating out of range (1-5) -> 400", (await S("POST", "/api/surveys/returning/responses", { householdId: fam.householdId, locationId: L1, answers: { ...BENCH, visit_rating: 6 } })).status === 400);
+
+// Which survey is due: first visit until answered, then returning visitors every 90 days.
+const dueFam = (await S("POST", "/api/households", { locationId: L2, zipCode: "78705", guardians: [{ firstName: "Dee", email: `dee.${run}@example.com` }] })).body;
+const otherDetail = (await S("GET", `/api/households/${dueFam.householdId}`)).body;
+check("survey due: no first-visit survey -> intake", otherDetail.surveyDue?.survey === "intake", otherDetail.surveyDue);
+const otherSearch = (await find(`dee.${run}@example.com`)).body;
+check("survey due shows in search results", otherSearch.results?.[0]?.surveyDue?.survey === "intake", otherSearch.results?.[0]?.surveyDue);
+check("survey due: just surveyed -> nothing due", (await S("GET", `/api/households/${fam.householdId}`)).body.surveyDue === null);
+await S("POST", "/api/surveys/intake/responses", { householdId: dueFam.householdId, locationId: L2, answers: BENCH });
+await sqlc.query("update survey_responses set submitted_at = now() - interval '100 days' where household_id = $1", [dueFam.householdId]);
+const otherLater = (await S("GET", `/api/households/${dueFam.householdId}`)).body;
+check("survey due: last survey 100 days ago -> returning", otherLater.surveyDue?.survey === "returning" && /month/.test(otherLater.surveyDue?.reason ?? ""), otherLater.surveyDue);
 const newSurvey = await A("POST", "/api/surveys", {
   key: `spring_event_${run}`, name: "Spring event",
   questions: [{ key: "favorite_genre", type: "multi_choice", prompt: { en: "Favorite kinds of books?" }, choices: [{ value: "animals", label: { en: "Animals" } }, { value: "science", label: { en: "Science" } }] }],
@@ -252,6 +264,8 @@ check("report: reading days change (2 -> 5)", rep.surveys.readDaysPerWeek.change
 check("report: books in home, latest answer", rep.surveys.booksInHome.some((r: any) => r.answer === "11-25"), rep.surveys.booksInHome);
 check("report: child enjoys reading (6 -> 8)", rep.surveys.childEnjoysReading.changeForReturningFamilies.first_average === 6 && rep.surveys.childEnjoysReading.changeForReturningFamilies.latest_average === 8, rep.surveys.childEnjoysReading);
 check("report: visit rating", rep.surveys.visitRating.average === 5 && rep.surveys.visitRating.responses === 1, rep.surveys.visitRating);
+check("report: how families heard about us", rep.surveys.heardAbout.some((h: any) => h.choice === "school" && h.label === "School" && h.families >= 1), rep.surveys.heardAbout);
+check("report: written answers to follow up on", rep.surveys.comments.some((c: any) => c.key === "heard_about_other" && c.text === "Flyer at the clinic" && c.householdId === fam.householdId), rep.surveys.comments.length);
 const inv = (await S("GET", `/api/inventory?locationId=${L1}`)).body;
 check("inventory list includes reading level and language", inv.some((r: any) => r.isbn === CATERPILLAR && r.readingLevel && r.language), inv[0]);
 const all = (await S("GET", "/api/reports/summary")).body;
@@ -263,6 +277,7 @@ const cov2 = (await S("GET", `/api/reports/survey-coverage?locationId=${L2}`)).b
 const raceWinner = race.find((r) => r.status === 201)?.body?.household?.householdId;
 check("survey coverage: visited family without intake is flagged", cov2.missing.some((m: any) => m.householdId === raceWinner && m.cardNumber && m.visits === 1), { missing: cov2.familiesMissing, visited: cov2.familiesVisited });
 const covFollow = (await S("GET", `/api/reports/survey-coverage?locationId=${L1}&survey=returning`)).body;
+check("survey coverage: returning uses the 90-day due rule", covFollow.mode === "due" && covFollow.dueAfterDays === 90 && covFollow.missing.every((m: any) => m.householdId !== fam.householdId), { mode: covFollow.mode, days: covFollow.dueAfterDays });
 check("survey coverage: per survey", covFollow.familiesSurveyed === 1 && covFollow.familiesMissing === 0, covFollow.familiesSurveyed);
 check("survey coverage: bad survey key -> 400", (await S("GET", "/api/reports/survey-coverage?survey=Bad Key")).status === 400);
 check("report: bad date -> 400", (await S("GET", "/api/reports/summary?from=last-week")).status === 400);
