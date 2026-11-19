@@ -18,8 +18,11 @@ type MissingFamily = {
   visits: number;
   lastVisitAt: string;
   lastLocation: string;
+  lastSurveyAt: string | null;
 };
 type Coverage = {
+  mode: "ever" | "due";
+  dueAfterDays: number | null;
   visits: number;
   surveyResponses: number;
   familiesVisited: number;
@@ -55,8 +58,8 @@ export function SurveyCoverage() {
     if (!d) return;
     const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const rows = [
-      ["Card", "First name", "Last name", "Email", "Phone", "ZIP", "Visits", "Last visit", "Last location"],
-      ...d.missing.map((m) => [m.cardNumber, m.firstName, m.lastName, m.email, m.phone, m.zipCode, m.visits, m.lastVisitAt.slice(0, 10), m.lastLocation]),
+      ["Card", "First name", "Last name", "Email", "Phone", "ZIP", "Visits", "Last visit", "Last location", "Last survey"],
+      ...d.missing.map((m) => [m.cardNumber, m.firstName, m.lastName, m.email, m.phone, m.zipCode, m.visits, m.lastVisitAt.slice(0, 10), m.lastLocation, m.lastSurveyAt?.slice(0, 10) ?? ""]),
     ];
     const blob = new Blob([rows.map((r) => r.map(cell).join(",")).join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
@@ -107,6 +110,12 @@ export function SurveyCoverage() {
         </select>
       </div>
 
+      {d?.mode === "due" && (
+        <p className="hint">
+          {surveyName} is asked again every {d.dueAfterDays} days, so this lists families who did the first-visit survey and whose
+          latest survey is older than that. Families without a first-visit survey show up under that survey instead.
+        </p>
+      )}
       {data.error && <ErrorBox error={data.error} onRetry={data.reload} />}
       {data.loading && !d && <Loading label="Comparing visits and surveys…" />}
       {d && (
@@ -123,16 +132,16 @@ export function SurveyCoverage() {
             </div>
             <div className="kpi">
               <span className="kpi-value">{d.familiesVisited.toLocaleString()}</span>
-              <span className="kpi-label">Families who visited</span>
+              <span className="kpi-label">{d.mode === "due" ? "Families who visited (first visit done)" : "Families who visited"}</span>
             </div>
             <div className="kpi">
               <span className="kpi-value">{d.coveragePercent == null ? "—" : `${d.coveragePercent}%`}</span>
-              <span className="kpi-label">Have answered {surveyName}</span>
+              <span className="kpi-label">{d.mode === "due" ? `Answered within ${d.dueAfterDays} days` : `Have answered ${surveyName}`}</span>
               <span className="kpi-note">{d.familiesSurveyed.toLocaleString()} families</span>
             </div>
             <div className="kpi">
               <span className="kpi-value">{d.familiesMissing.toLocaleString()}</span>
-              <span className="kpi-label">Families missing it</span>
+              <span className="kpi-label">{d.mode === "due" ? "Families due for it" : "Families missing it"}</span>
             </div>
           </div>
 
@@ -157,6 +166,7 @@ export function SurveyCoverage() {
                       <th>Contact</th>
                       <th className="num">Visits</th>
                       <th>Last visit</th>
+                      <th>Last survey</th>
                       <th>
                         <span className="sr-only">Actions</span>
                       </th>
@@ -179,6 +189,7 @@ export function SurveyCoverage() {
                           {fmtDate(m.lastVisitAt)}
                           <div className="muted">{m.lastLocation}</div>
                         </td>
+                        <td className="small">{m.lastSurveyAt ? fmtDate(m.lastSurveyAt) : "never"}</td>
                         <td>
                           <a className="button secondary small" href={`#/family/${m.householdId}/survey/${survey}`}>
                             📝 Take survey

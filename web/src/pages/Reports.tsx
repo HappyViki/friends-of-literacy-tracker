@@ -182,7 +182,7 @@ function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
 
       <h2 className="section-title">📝 Survey outcomes</h2>
       <section className="kpis">
-        <Kpi value={rd.average != null ? rd.average.toFixed(1) : "—"} label="Avg. days a week reading together" note={`${rd.responses.toLocaleString()} answers in range`} />
+        <Kpi value={rd.average != null ? rd.average.toFixed(1) : "—"} label="Avg. days a week reading to their child" note={`${rd.responses.toLocaleString()} answers in range`} />
         <Kpi
           value={delta != null ? `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}` : "—"}
           label="Change for returning families"
@@ -210,6 +210,60 @@ function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
           )}
         </ChartCard>
       </div>
+      <div className="two-col">
+        <ChartCard
+          title="How families heard about Story Garden"
+          subtitle="Families can pick more than one"
+          table={<DataTable head={["Source", "Families"]} rows={r.surveys.heardAbout.map((h) => [h.label, h.families])} />}
+        >
+          {r.surveys.heardAbout.length ? (
+            <BarList data={r.surveys.heardAbout.map((h) => ({ label: h.label, value: h.families }))} unit="families" />
+          ) : (
+            <p className="muted">No answers in this range yet.</p>
+          )}
+        </ChartCard>
+        <Comments comments={r.surveys.comments} />
+      </div>
     </div>
+  );
+}
+
+const COMMENT_GROUPS: { key: string; title: string }[] = [
+  { key: "other_resources", title: "Asked about community resources" },
+  { key: "ideas", title: "Ideas for Story Garden" },
+  { key: "why_visit", title: "Why they came" },
+  { key: "heard_about_other", title: "Heard about us another way" },
+];
+
+/** Latest written answers, grouped, each linking to the family so staff can follow up. */
+function Comments({ comments }: { comments: Report["surveys"]["comments"] }) {
+  const [group, setGroup] = useState(COMMENT_GROUPS[0].key);
+  const rows = comments.filter((c) => c.key === group);
+  return (
+    <section className="card chart-card">
+      <h3>What families told us</h3>
+      <div className="segmented wrap" role="group" aria-label="Which answers">
+        {COMMENT_GROUPS.map((g) => (
+          <button key={g.key} type="button" className={group === g.key ? "on" : ""} aria-pressed={group === g.key} onClick={() => setGroup(g.key)}>
+            {g.title} ({comments.filter((c) => c.key === g.key).length})
+          </button>
+        ))}
+      </div>
+      {rows.length === 0 ? (
+        <p className="muted">Nothing yet in this range.</p>
+      ) : (
+        <ul className="plain comments">
+          {rows.map((c, i) => (
+            <li key={i}>
+              <p>“{c.text}”</p>
+              <p className="muted small">
+                {new Date(c.submittedAt).toLocaleDateString()} · {c.location} ·{" "}
+                <a href={`#/family/${c.householdId}`}>{c.cardNumber ?? "family"}</a>
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

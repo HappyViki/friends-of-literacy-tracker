@@ -47,14 +47,24 @@ function SurveyForm({ family, survey }: { family: Family; survey: Survey }) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<number | null>(null);
   const set = (k: string, v: unknown) => setAnswers((a) => ({ ...a, [k]: v }));
+  // A "<key>_other" text question follows a choice question <key> and only matters when "other" is picked.
+  const visible = survey.questions.filter((q) => {
+    const parent = q.key.endsWith("_other") ? survey.questions.find((p) => p.key === q.key.slice(0, -"_other".length)) : undefined;
+    if (!parent) return true;
+    const v = answers[parent.key];
+    return Array.isArray(v) ? v.includes("other") : v === "other";
+  });
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
+      // Drop answers to follow-ups that are hidden again (e.g. "other" was unticked).
+      const shown = new Set(visible.map((q) => q.key));
+      const sent = Object.fromEntries(Object.entries(answers).filter(([k]) => shown.has(k)));
       const r = await api<{ answered: number }>(`/api/surveys/${survey.key}/responses`, {
-        json: { householdId: family.householdId, guardianId: guardianId || null, locationId: location.id, answers },
+        json: { householdId: family.householdId, guardianId: guardianId || null, locationId: location.id, answers: sent },
       });
       setSaved(r.answered);
     } catch (err) {
@@ -114,7 +124,7 @@ function SurveyForm({ family, survey }: { family: Family; survey: Survey }) {
             </select>
           </>
         )}
-        {survey.questions.map((q, i) => (
+        {visible.map((q, i) => (
           <QuestionField key={q.key} n={i + 1} q={q} lang={lang} value={answers[q.key]} onChange={(v) => set(q.key, v)} />
         ))}
         <ErrorBox error={error} />

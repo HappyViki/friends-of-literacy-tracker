@@ -21,7 +21,11 @@ export type FamilySummary = {
   guardians: { firstName: string; lastName: string | null; email: string | null; phone: string | null }[];
   children: string[];
   score?: number;
+  surveyDue: SurveyDue;
 };
+
+/** The survey a family should be asked next (first visit, or returning visitors when due), or null. */
+export type SurveyDue = { survey: "intake" | "returning"; name: string; reason: string; lastSurveyAt: string | null } | null;
 
 export type SearchResult = {
   matchedBy: "card" | "email" | "phone" | "name";
@@ -66,6 +70,7 @@ export type Family = {
     books: { isbn: string; title: string; category: string; readingLevel: string | null; language: string | null; condition: "new" | "used"; quantity: number; forChild: string | null }[];
   }[];
   surveyResponses: { responseId: number; survey: string; surveyName: string; submittedAt: string; answers: Record<string, unknown> }[];
+  surveyDue: SurveyDue;
 };
 
 export type Book = {
@@ -173,6 +178,8 @@ export type Report = {
     readDaysPerWeek: Benchmark;
     childEnjoysReading: Benchmark;
     visitRating: Benchmark;
+    heardAbout: { choice: string; label: string; families: number }[];
+    comments: { key: string; question: string; text: string; submittedAt: string; householdId: string; cardNumber: string | null; location: string }[];
     booksInHome: { answer: string; families: number }[];
     everyoneReads: { yes: number; no: number; percent_yes: number | null };
   };
