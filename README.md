@@ -100,7 +100,7 @@ If staff have since used demo families or locations, the reset stops and lists w
 | `npm run deploy` | Deploy the API to the linked branch |
 | `npm test` | Unit tests |
 | `npm run test:e2e` | End-to-end test against the deployed API (refuses to run on production) |
-| `npm run test:smoke` | Production-safe smoke test (needs `neon env pull --branch production --file .env.production`) |
+| `npm run test:smoke` | Production-safe smoke test (needs `neon env pull --branch production --file .env.neon-production`) |
 | `npm run dev` | Staff UI on http://localhost:5173 against the deployed API |
 | `npm run build` / `npm start` | Build / serve the staff UI |
 

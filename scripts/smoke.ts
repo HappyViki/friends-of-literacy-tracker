@@ -1,7 +1,7 @@
 // Production-safe smoke test of the deployed API. Creates nothing a report would count: it signs up a
 // temporary staff account, calls read-only routes and one ISBN scan (which only adds a catalog row),
 // then deletes the account. Usage:
-//   node --env-file=.env.production --import tsx scripts/smoke.ts
+//   node --env-file=.env.neon-production --import tsx scripts/smoke.ts
 import pg from "pg";
 import { functionBaseUrl } from "@neon/env";
 
