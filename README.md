@@ -36,6 +36,45 @@ Only staff can use the API. Anyone can create a Neon Auth account, so the API al
 account's **email to be verified** and listed in `staff_members`. Add the first admin with
 `npm run staff:add -- someone@example.org --admin`; admins add other staff through `POST /api/staff`.
 
+## Staff UI
+
+`web/` is the staff app (Vite + React, no UI framework). `npm run dev` serves it on
+http://localhost:5173 against the API deployed to the linked branch (the API allows that origin).
+
+- **Sign-in**: Neon Auth email and password, email verification by code, a "not on the staff list"
+  screen, then a location picker (remembered per browser; change it from the header).
+- **Front desk**: one search box for a scanned or typed card, email, phone or name (typos are fine).
+  Lost cards still find the family, with a warning.
+- **New family**: guardians, children (birth year/month or just an age), ZIP and home languages;
+  shows the card number and a printable Code 128 card.
+- **Family page**: children with ages, books received, survey answers, add a child, replace a card.
+- **Give books**: scan ISBNs into a basket, pick new/used and the child; shortages are shown per line.
+- **Surveys**: English/Spanish toggle, starting in the family's preferred language.
+- **Books**: scan a book (reading level, language and genre with their source, stock by location,
+  giveaway history), add copies (donation or purchase; unknown ISBNs are added by hand), and the
+  inventory list with transfer, damaged and recount.
+- **Reports**: KPIs and charts filtered by date range and location, each with a table view,
+  including books by reading level, by book language, and reading level by child's age.
+- **Admin**: locations, staff and surveys.
+
+It is laid out for phones and tablets as well as desktops.
+
+## Demo data
+
+`npm run seed:demo` fills the **dev** branch with a realistic program year (it refuses to run when
+`NEON_BRANCH` is `production`): 4 locations (a library branch, an elementary school, a community
+center and a monthly farmers-market tent), 150 families signed up over the last 12 months with
+summer and back-to-school bumps, English-, Spanish- and other-language homes, 71 real children's
+and family books (including Spanish and bilingual titles), donations and purchases, about 400
+visits giving about 1,200 books, and intake and 6-month follow-up surveys. Contact details are
+fake (`example.com`/`example.org`, phones in 555-01xx). The data is repeatable and relative to today.
+
+Every demo row is marked (`created_by`/`issued_by` = `demo-seed`, books with `source` and
+`category_model` = `demo`, locations `MAPL`, `CVES`, `EBCC`, `FMKT`).
+`npm run seed:demo -- --reset` deletes the demo rows and seeds again (`--reset --only` just deletes).
+If staff have since used demo families or locations, the reset stops and lists what it found; add
+`--with-staff-activity` to delete those rows too. Run `npm run db:seed` first on a new branch.
+
 ## Layout
 
 | Path | What |
@@ -47,7 +86,7 @@ account's **email to be verified** and listed in `staff_members`. Add the first 
 | `src/books/` | ISBN lookup and categorizer |
 | `src/domain/` | Card numbers, contact normalization, ages |
 | `web/` | Staff UI (Vite + React) |
-| `scripts/` | Seed, staff, end-to-end test |
+| `scripts/` | Seed, demo data, staff, end-to-end test |
 
 ## Commands
 
@@ -56,11 +95,13 @@ account's **email to be verified** and listed in `staff_members`. Add the first 
 | `neon checkout dev` | Work on the `dev` Neon branch (pulls its env into `.env.local`) |
 | `npm run db:migrate` | Apply migrations to the linked branch |
 | `npm run db:seed` | Languages and the standard surveys (safe to re-run) |
+| `npm run seed:demo [-- --reset]` | Demo data on dev (see [Demo data](#demo-data)) |
 | `npm run staff:add -- email [--admin]` | Allow someone to use the app |
 | `npm run deploy` | Deploy the API to the linked branch |
 | `npm test` | Unit tests |
 | `npm run test:e2e` | End-to-end test against the deployed API (refuses to run on production) |
 | `npm run test:smoke` | Production-safe smoke test (needs `neon env pull --branch production --file .env.production`) |
+| `npm run dev` | Staff UI on http://localhost:5173 against the deployed API |
 | `npm run build` / `npm start` | Build / serve the staff UI |
 
 ## API
