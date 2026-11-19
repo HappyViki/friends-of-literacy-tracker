@@ -90,7 +90,7 @@ function Classification({ label, value, source, conf }: { label: string; value: 
 function BookDetails({ scan }: { scan: BookScan }) {
   const { locations } = useApp();
   const b = scan.book;
-  const history = usePager(scan.giveaways, { size: 10, resetKey: b.isbn });
+  const history = usePager(scan.giveaways, { resetKey: b.isbn });
   const byLoc = new Map<number, { code: string; name: string; new: number; used: number }>();
   for (const s of scan.stock) {
     const l = byLoc.get(s.locationId) ?? { code: s.location, name: locations.find((x) => x.id === s.locationId)?.name ?? s.location, new: 0, used: 0 };

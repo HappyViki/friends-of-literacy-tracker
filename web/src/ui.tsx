@@ -272,7 +272,7 @@ export type Pager<T> = { rows: T[]; page: number; pages: number; size: number; t
  * Splits a long list into pages. Goes back to page 1 when `resetKey` changes (a new filter
  * or search) and stays in range when the list shrinks (a row was removed).
  */
-export function usePager<T>(items: readonly T[], { size: initial = 25, resetKey = "" }: { size?: number; resetKey?: unknown } = {}): Pager<T> {
+export function usePager<T>(items: readonly T[], { size: initial = 10, resetKey = "" }: { size?: number; resetKey?: unknown } = {}): Pager<T> {
   const [size, setSizeState] = useState(initial);
   const [page, setPage] = useState(1);
   useEffect(() => setPage(1), [resetKey]);

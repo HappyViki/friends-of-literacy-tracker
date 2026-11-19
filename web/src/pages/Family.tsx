@@ -5,7 +5,7 @@ import { languageName, useApp } from "../context";
 import { LibraryCard } from "../LibraryCard";
 import type { Family, Survey } from "../types";
 import { AGE_RANGES } from "./Intake";
-import { ErrorBox, Loading, Notice, familyName, fmtDate, fmtDateTime, fmtPhone, fullName, plural, toApiError, useAsync } from "../ui";
+import { ErrorBox, Loading, Notice, PagerBar, familyName, fmtDate, fmtDateTime, fmtPhone, fullName, plural, toApiError, useAsync, usePager } from "../ui";
 
 const MAX_ADULTS = 4;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -15,6 +15,8 @@ export function FamilyPage({ householdId }: { householdId: string }) {
   const fam = useAsync(() => api<Family>(`/api/households/${householdId}`), [householdId]);
   const surveys = useAsync(() => api<Survey[]>("/api/surveys"), []);
   const [showCard, setShowCard] = useState(false);
+  const visits = usePager(fam.data?.giveaways ?? [], { resetKey: householdId });
+  const answers = usePager(fam.data?.surveyResponses ?? [], { resetKey: householdId });
 
   if (fam.loading && !fam.data) return <Loading label="Loading family…" />;
   if (fam.error && !fam.data) return <ErrorBox error={fam.error} onRetry={fam.reload} />;
@@ -125,7 +127,7 @@ export function FamilyPage({ householdId }: { householdId: string }) {
           <p className="muted">No books yet. Give the first ones!</p>
         ) : (
           <ol className="timeline">
-            {f.giveaways.map((g) => (
+            {visits.rows.map((g) => (
               <li key={g.distributionId}>
                 <p className="tl-head">
                   <b>{fmtDateTime(g.distributedAt)}</b> <span className="muted">at {g.location}</span>
@@ -147,6 +149,7 @@ export function FamilyPage({ householdId }: { householdId: string }) {
             ))}
           </ol>
         )}
+        <PagerBar pager={visits} noun="visits" />
       </section>
 
       <section className="card">
@@ -155,7 +158,7 @@ export function FamilyPage({ householdId }: { householdId: string }) {
           <p className="muted">No surveys yet.</p>
         ) : (
           <div className="survey-answers">
-            {f.surveyResponses.map((r) => {
+            {answers.rows.map((r) => {
               const s = surveys.data?.find((x) => x.key === r.survey);
               return (
                 <div key={r.responseId} className="sub">
@@ -178,6 +181,7 @@ export function FamilyPage({ householdId }: { householdId: string }) {
             })}
           </div>
         )}
+        <PagerBar pager={answers} noun="surveys" />
       </section>
 
       <section className="card">

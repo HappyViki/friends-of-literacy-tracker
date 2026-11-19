@@ -44,7 +44,7 @@ function Locations() {
     .filter((l) => (show === "all" ? true : show === "active" ? l.active : !l.active))
     .filter((l) => !q || `${l.code} ${l.name} ${l.address ?? ""} ${l.zipCode ?? ""}`.toLowerCase().includes(q))
     .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name));
-  const pager = usePager(shown, { size: 10, resetKey: `${show}|${q}` });
+  const pager = usePager(shown, { resetKey: `${show}|${q}` });
   const count = (active: boolean) => locations.filter((l) => l.active === active).length;
 
   async function create(e: FormEvent) {
@@ -165,13 +165,14 @@ function Locations() {
 
 function Surveys() {
   const surveys = useAsync(() => api<Survey[]>("/api/surveys?all=1"), []);
+  const pager = usePager(surveys.data ?? []);
   return (
     <section className="card">
       <h2>📝 Surveys</h2>
       <p className="muted">Read-only. Questions share keys across surveys so reports compare answers over time.</p>
       {surveys.loading && !surveys.data && <Loading />}
       <ErrorBox error={surveys.error} onRetry={surveys.reload} />
-      {(surveys.data ?? []).map((s) => (
+      {pager.rows.map((s) => (
         <details key={s.key} className="sub">
           <summary>
             <b>{s.name}</b> <span className="muted mono small">{s.key}</span> {!s.active && <span className="badge">closed</span>}{" "}
@@ -188,6 +189,7 @@ function Surveys() {
           </ol>
         </details>
       ))}
+      <PagerBar pager={pager} noun="surveys" />
     </section>
   );
 }
