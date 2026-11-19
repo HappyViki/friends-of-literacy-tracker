@@ -210,22 +210,27 @@ check("card lookup endpoint", (await S("GET", `/api/cards/${newCard}`)).body?.ho
 
 // ---- surveys ----------------------------------------------------------------------------------
 const surveys = (await S("GET", "/api/surveys")).body;
-check("intake and follow-up surveys exist", surveys.some((s: any) => s.key === "intake") && surveys.some((s: any) => s.key === "followup_6mo"));
+check("Story Garden surveys are open; the old follow-up is closed", surveys.some((s: any) => s.key === "intake" && s.questions.length === 7) && surveys.some((s: any) => s.key === "returning" && s.questions.length === 5) && !surveys.some((s: any) => s.key === "followup_6mo"), surveys.map((s: any) => s.key));
 const guardianId = fam.guardians[0].id;
 const intakeAns = await S("POST", "/api/surveys/intake/responses", {
   householdId: fam.householdId, guardianId, locationId: L1,
-  answers: { books_in_home: "1-10", everyone_reads: false, read_days_per_week: 2 },
+  answers: { books_in_home: "1-10", read_days_per_week: "2+", child_enjoys_reading: 6, heard_about: ["school", "other"], heard_about_other: "Flyer at the clinic" },
 });
-check("submit intake survey", intakeAns.status === 201 && intakeAns.body?.answered === 3, intakeAns.body);
-check("read days out of range -> 400", (await S("POST", "/api/surveys/intake/responses", { householdId: fam.householdId, locationId: L1, answers: { books_in_home: "0", everyone_reads: true, read_days_per_week: 9 } })).status === 400);
+check("submit first-visit survey", intakeAns.status === 201 && intakeAns.body?.answered === 5, intakeAns.body);
+const BENCH = { books_in_home: "0", read_days_per_week: "1+", child_enjoys_reading: 5 };
+check("enjoys reading out of range (1-10) -> 400", (await S("POST", "/api/surveys/intake/responses", { householdId: fam.householdId, locationId: L1, answers: { ...BENCH, child_enjoys_reading: 11 } })).status === 400);
+check("reading days must be one of the choices -> 400", (await S("POST", "/api/surveys/intake/responses", { householdId: fam.householdId, locationId: L1, answers: { ...BENCH, read_days_per_week: 2 } })).status === 400);
+check("retired question (everyone_reads) -> 400", (await S("POST", "/api/surveys/intake/responses", { householdId: fam.householdId, locationId: L1, answers: { ...BENCH, everyone_reads: true } })).status === 400);
 check("missing required answer -> 400", (await S("POST", "/api/surveys/intake/responses", { householdId: fam.householdId, locationId: L1, answers: { books_in_home: "0" } })).status === 400);
-check("choice not on the list -> 400", (await S("POST", "/api/surveys/intake/responses", { householdId: fam.householdId, locationId: L1, answers: { books_in_home: "lots", everyone_reads: true, read_days_per_week: 1 } })).status === 400);
-check("guardian from another family -> 400", (await S("POST", "/api/surveys/intake/responses", { householdId: otherFam.body.householdId, guardianId, locationId: L1, answers: { books_in_home: "0", everyone_reads: true, read_days_per_week: 1 } })).status === 400);
-const follow = await S("POST", "/api/surveys/followup_6mo/responses", {
+check("choice not on the list -> 400", (await S("POST", "/api/surveys/intake/responses", { householdId: fam.householdId, locationId: L1, answers: { ...BENCH, books_in_home: "lots" } })).status === 400);
+check("guardian from another family -> 400", (await S("POST", "/api/surveys/intake/responses", { householdId: otherFam.body.householdId, guardianId, locationId: L1, answers: BENCH })).status === 400);
+check("old follow-up survey is closed -> 409", (await S("POST", "/api/surveys/followup_6mo/responses", { householdId: fam.householdId, locationId: L1, answers: {} })).status === 409);
+const follow = await S("POST", "/api/surveys/returning/responses", {
   householdId: fam.householdId, guardianId, locationId: L1,
-  answers: { books_in_home: "11-25", read_days_per_week: 5, child_enjoys_reading: 4, comments: "Sofia loves the caterpillar book" },
+  answers: { visit_rating: 5, books_in_home: "11-25", read_days_per_week: "5+", child_enjoys_reading: 8, ideas: "Story time in Spanish!" },
 });
-check("submit a different survey (follow-up)", follow.status === 201 && follow.body?.answered === 4, follow.body);
+check("submit returning-visitor survey", follow.status === 201 && follow.body?.answered === 5, follow.body);
+check("visit rating out of range (1-5) -> 400", (await S("POST", "/api/surveys/returning/responses", { householdId: fam.householdId, locationId: L1, answers: { ...BENCH, visit_rating: 6 } })).status === 400);
 const newSurvey = await A("POST", "/api/surveys", {
   key: `spring_event_${run}`, name: "Spring event",
   questions: [{ key: "favorite_genre", type: "multi_choice", prompt: { en: "Favorite kinds of books?" }, choices: [{ value: "animals", label: { en: "Animals" } }, { value: "science", label: { en: "Science" } }] }],
@@ -245,7 +250,8 @@ check("report: by child age bracket", rep.booksGivenAway.byChildAgeBracket.some(
 check("report: by home language", rep.booksGivenAway.byHomeLanguage.some((r: any) => r.language === "Spanish"), rep.booksGivenAway.byHomeLanguage);
 check("report: reading days change (2 -> 5)", rep.surveys.readDaysPerWeek.changeForReturningFamilies.first_average === 2 && rep.surveys.readDaysPerWeek.changeForReturningFamilies.latest_average === 5, rep.surveys.readDaysPerWeek);
 check("report: books in home, latest answer", rep.surveys.booksInHome.some((r: any) => r.answer === "11-25"), rep.surveys.booksInHome);
-check("report: everyone reads", rep.surveys.everyoneReads.no === 1, rep.surveys.everyoneReads);
+check("report: child enjoys reading (6 -> 8)", rep.surveys.childEnjoysReading.changeForReturningFamilies.first_average === 6 && rep.surveys.childEnjoysReading.changeForReturningFamilies.latest_average === 8, rep.surveys.childEnjoysReading);
+check("report: visit rating", rep.surveys.visitRating.average === 5 && rep.surveys.visitRating.responses === 1, rep.surveys.visitRating);
 const inv = (await S("GET", `/api/inventory?locationId=${L1}`)).body;
 check("inventory list includes reading level and language", inv.some((r: any) => r.isbn === CATERPILLAR && r.readingLevel && r.language), inv[0]);
 const all = (await S("GET", "/api/reports/summary")).body;
@@ -256,7 +262,7 @@ check("survey coverage: family with intake isn't flagged", cov1.familiesVisited 
 const cov2 = (await S("GET", `/api/reports/survey-coverage?locationId=${L2}`)).body;
 const raceWinner = race.find((r) => r.status === 201)?.body?.household?.householdId;
 check("survey coverage: visited family without intake is flagged", cov2.missing.some((m: any) => m.householdId === raceWinner && m.cardNumber && m.visits === 1), { missing: cov2.familiesMissing, visited: cov2.familiesVisited });
-const covFollow = (await S("GET", `/api/reports/survey-coverage?locationId=${L1}&survey=followup_6mo`)).body;
+const covFollow = (await S("GET", `/api/reports/survey-coverage?locationId=${L1}&survey=returning`)).body;
 check("survey coverage: per survey", covFollow.familiesSurveyed === 1 && covFollow.familiesMissing === 0, covFollow.familiesSurveyed);
 check("survey coverage: bad survey key -> 400", (await S("GET", "/api/reports/survey-coverage?survey=Bad Key")).status === 400);
 check("report: bad date -> 400", (await S("GET", "/api/reports/summary?from=last-week")).status === 400);

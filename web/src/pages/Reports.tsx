@@ -20,7 +20,8 @@ const monthLabel = (m: string, first = false) => {
   const [y, mo] = m.split("-").map(Number);
   return `${MONTHS[mo - 1]}${mo === 1 || first ? ` ’${String(y).slice(2)}` : ""}`;
 };
-const BOOKS_IN_HOME_ORDER = ["0", "1-10", "11-25", "26-50", "51-100", "100+"];
+// "26+" is the Story Garden bucket; the others are from older surveys.
+const BOOKS_IN_HOME_ORDER = ["0", "1-10", "11-25", "26+", "26-50", "51-100", "100+"];
 const BOOKS_IN_HOME_LABEL: Record<string, string> = { "0": "None", "100+": "More than 100" };
 const AGE_ORDER = ["0-2", "3-5", "6-8", "9-12", "13-17", "18+", "unknown"];
 const LEVEL_ORDER = ["Board Book", "Picture Book", "Early Reader", "Chapter Book", "YA", "Adult", "Unknown"];
@@ -101,6 +102,13 @@ function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
   const bih = [...r.surveys.booksInHome].sort((x, y) => BOOKS_IN_HOME_ORDER.indexOf(x.answer) - BOOKS_IN_HOME_ORDER.indexOf(y.answer));
   const bihTotal = bih.reduce((n, x) => n + x.families, 0);
   const er = r.surveys.everyoneReads;
+  const en = r.surveys.childEnjoysReading;
+  const enCh = en.changeForReturningFamilies;
+  const vr = r.surveys.visitRating;
+  const change = (c: typeof enCh, unit: string) =>
+    c.families && c.first_average != null && c.latest_average != null
+      ? `${c.first_average.toFixed(1)} → ${c.latest_average.toFixed(1)}${unit}, ${c.families} returning families`
+      : "Needs families with 2+ answers";
   const stockByLoc = new Map<string, { new: number; used: number; titles: number }>();
   for (const s of r.stockOnHand) {
     const v = stockByLoc.get(s.location) ?? { new: 0, used: 0, titles: 0 };
@@ -180,7 +188,11 @@ function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
           label="Change for returning families"
           note={ch.families ? `${ch.first_average?.toFixed(1)} → ${ch.latest_average?.toFixed(1)} days, ${ch.families} families (first vs. latest answer)` : "Needs families with 2+ answers"}
         />
-        <Kpi value={er.percent_yes != null ? `${er.percent_yes}%` : "—"} label="Homes where everyone reads" note={`${er.yes} yes · ${er.no} no (latest answer)`} />
+        <Kpi value={en.average != null ? en.average.toFixed(1) : "—"} label="Child enjoys reading (1–10)" note={change(enCh, "")} />
+        <Kpi value={vr.average != null ? vr.average.toFixed(1) : "—"} label="Visit rating (1–5)" note={`${vr.responses.toLocaleString()} returning-visitor answers in range`} />
+        {er.yes + er.no > 0 && (
+          <Kpi value={er.percent_yes != null ? `${er.percent_yes}%` : "—"} label="Homes where everyone reads" note={`older surveys · ${er.yes} yes · ${er.no} no`} />
+        )}
       </section>
       <div className="two-col">
         <ChartCard title="Books at home" subtitle="Latest answer per family" table={<DataTable head={["Books at home", "Families"]} rows={bih.map((x) => [BOOKS_IN_HOME_LABEL[x.answer] ?? x.answer, x.families])} />}>
@@ -192,7 +204,7 @@ function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
           table={<DataTable head={["Answer", "Avg. days / week"]} rows={[["First", ch.first_average ?? "—"], ["Latest", ch.latest_average ?? "—"]]} />}
         >
           {ch.families ? (
-            <BarList max={7} data={[{ label: "First answer", value: ch.first_average ?? 0 }, { label: "Latest answer", value: ch.latest_average ?? 0 }]} unit="days a week" />
+            <BarList max={Math.max(5, ch.first_average ?? 0, ch.latest_average ?? 0)} data={[{ label: "First answer", value: ch.first_average ?? 0 }, { label: "Latest answer", value: ch.latest_average ?? 0 }]} unit="days a week" />
           ) : (
             <p className="muted">No families have answered twice yet.</p>
           )}

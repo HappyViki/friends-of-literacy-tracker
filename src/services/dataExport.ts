@@ -5,6 +5,7 @@ import ExcelJS from "exceljs";
 import { z } from "zod";
 import { pool } from "../api/db.ts";
 import { parse } from "../api/errors.ts";
+import { ANSWER_NUMBER } from "./reports.ts";
 
 const exportInput = z.object({
   from: z.iso.date().optional(),
@@ -92,9 +93,9 @@ export async function workbook(query: Record<string, string | undefined>) {
     q(
       `with ${FAMILY},
        latest as (
-         select distinct on (r.household_id, sq.key) r.household_id, sq.key, a.value_number, a.value_bool, a.value_text
+         select distinct on (r.household_id, sq.key) r.household_id, sq.key, ${ANSWER_NUMBER()} as value_number, a.value_bool, a.value_text
          from survey_answers a join survey_questions sq on sq.id = a.question_id join survey_responses r on r.id = a.response_id
-         where sq.key in ('books_in_home', 'everyone_reads', 'read_days_per_week')
+         where sq.key in ('books_in_home', 'everyone_reads', 'read_days_per_week', 'child_enjoys_reading', 'visit_rating')
          order by r.household_id, sq.key, r.submitted_at desc)
        select f.card, ${day("f.created_at")} as signed_up, f.home_location, f.home_location_name, f.zip_code, f.languages as home_languages,
               (select count(*)::int from guardians g where g.household_id = f.id) as adults,
@@ -107,7 +108,9 @@ export async function workbook(query: Record<string, string | undefined>) {
               (select count(*)::int from survey_responses r where r.household_id = f.id) as surveys_taken,
               (select value_text from latest where household_id = f.id and key = 'books_in_home') as books_in_home,
               (select value_bool from latest where household_id = f.id and key = 'everyone_reads') as everyone_reads,
-              (select value_number from latest where household_id = f.id and key = 'read_days_per_week') as read_days_per_week
+              (select value_number from latest where household_id = f.id and key = 'read_days_per_week') as read_days_per_week,
+              (select value_number from latest where household_id = f.id and key = 'child_enjoys_reading') as child_enjoys_reading,
+              (select value_number from latest where household_id = f.id and key = 'visit_rating') as visit_rating
        from family f order by f.created_at`,
       p,
     ),
@@ -138,7 +141,7 @@ export async function workbook(query: Record<string, string | undefined>) {
                 a.value_text, a.value_number::text,
                 (select string_agg(coalesce((select ch->'label'->>'en' from jsonb_array_elements(sq.choices) ch where ch->>'value' = v), v), ', ')
                    from unnest(a.value_choices) v)) as answer,
-              a.value_number as answer_number, l.code as location, f.card, f.zip_code, f.languages as home_languages, r.id as response_id
+              ${ANSWER_NUMBER()} as answer_number, l.code as location, f.card, f.zip_code, f.languages as home_languages, r.id as response_id
        from survey_answers a
        join survey_questions sq on sq.id = a.question_id
        join survey_responses r on r.id = a.response_id
@@ -224,8 +227,10 @@ export async function workbook(query: Record<string, string | undefined>) {
         C("Intake survey done", "has_intake", "Yes if they've answered the intake survey.", "yesno", 9),
         C("Surveys taken", "surveys_taken", "Survey responses, all surveys.", "number", 8),
         C("Books at home (latest)", "books_in_home", "Latest answer to 'About how many books are in your home?'.", "text", 12),
-        C("Everyone reads (latest)", "everyone_reads", "Latest answer to 'Can everyone in your home read?'.", "yesno", 10),
-        C("Reading days/week (latest)", "read_days_per_week", "Latest answer to 'How many days a week do you read with your child?'.", "number", 10),
+        C("Everyone reads (latest)", "everyone_reads", "Latest answer to 'Can everyone in your home read?' (no longer asked; older surveys).", "yesno", 10),
+        C("Reading days/week (latest)", "read_days_per_week", "Latest answer to 'How many days a week do you read to your child?' (\"3+\" counts as 3).", "number", 10),
+        C("Child enjoys reading (latest)", "child_enjoys_reading", "Latest answer, 1 (not at all) to 10 (enjoys reading).", "number", 10),
+        C("Visit rating (latest)", "visit_rating", "Latest returning-visitor rating, 1 (not enjoyable) to 5 (enjoyable).", "number", 9),
       ],
     },
     {
@@ -261,7 +266,7 @@ export async function workbook(query: Record<string, string | undefined>) {
         C("Date", "date", "Day the survey was taken.", "date", 11), C("Survey", "survey", "Survey name.", "text", 16),
         C("Question key", "question_key", "Stable question id, the same across surveys (e.g. read_days_per_week).", "text", 18),
         C("Question", "question", "Question text (English).", "text", 40), C("Answer", "answer", "Answer as shown to staff.", "text", 16),
-        C("Answer (number)", "answer_number", "Numeric answers only, for averages.", "number", 9), loc, card, zip, langs,
+        C("Answer (number)", "answer_number", "Numbers and scales, plus choices like \"3+\" as 3. Use it for averages.", "number", 9), loc, card, zip, langs,
         C("Response ID", "response_id", "Same for answers from one survey sitting.", "number", 9),
       ],
     },
