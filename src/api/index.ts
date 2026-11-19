@@ -48,7 +48,11 @@ const uuid = (s: string) => {
   return s;
 };
 
-api.get("/me", (c) => c.json(c.get("staff")));
+api.get("/me", async (c) => {
+  const staff = c.get("staff");
+  if (staff.role === "admin") await admin.ensureAuthAdmin(staff.email);
+  return c.json(staff);
+});
 
 // Families
 api.post("/households", async (c) => c.json(await families.intake(await json(c), c.get("staff")), 201));

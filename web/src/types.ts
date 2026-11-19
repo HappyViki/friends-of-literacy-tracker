@@ -137,7 +137,20 @@ export type Question = {
 };
 export type Survey = { id: number; key: string; name: string; description: string | null; active: boolean; questions: Question[] };
 
-export type StaffMember = { email: string; role: "admin" | "staff"; active: boolean; addedBy: string; createdAt: string };
+export type StaffMember = {
+  email: string;
+  role: "staff" | "admin";
+  active: boolean;
+  createdAt: string;
+  addedBy: string;
+  /** Neon Auth account, if they have one. */
+  authUserId: string | null;
+  name: string | null;
+  banned: boolean | null;
+  /** Sign-in methods: "credential" (password), "google". */
+  signIn: string[];
+  lastActive: string | null;
+};
 
 export type Report = {
   filters: { from?: string; to?: string; locationId?: number };

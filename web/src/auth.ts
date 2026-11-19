@@ -8,6 +8,11 @@ export const authClient = createAuthClient(new URL(__NEON_AUTH_PATH__, window.lo
 type Result<T> = { data: T | null; error: { message?: string; code?: string; status?: number } | null };
 type ExtraMethods = {
   token: (opts?: { fetchOptions?: { headers?: Record<string, string> } }) => Promise<Result<{ token: string }>>;
+  // Better Auth admin plugin (Neon Auth admins only).
+  admin: {
+    createUser: (args: { email: string; password: string; name: string; role?: "admin" | "user"; data?: Record<string, unknown> }) => Promise<Result<{ user: { id: string } }>>;
+    setUserPassword: (args: { userId: string; newPassword: string }) => Promise<Result<{ status: boolean }>>;
+  };
   emailOtp: {
     sendVerificationOtp: (args: { email: string; type: "email-verification" }) => Promise<Result<{ success: boolean }>>;
     verifyEmail: (args: { email: string; otp: string }) => Promise<Result<unknown>>;
@@ -15,6 +20,7 @@ type ExtraMethods = {
 };
 const extra = authClient as unknown as ExtraMethods;
 export const emailOtp = extra.emailOtp;
+export const authAdmin = extra.admin;
 
 // The SDK answers any URL containing "/token" from its cached session once getSession() has run,
 // so a plain token() returns { session, user } instead of { token } (e.g. right after Google sign-in,

@@ -43,7 +43,7 @@ async function account(label: string, opts: { verified: boolean; role?: "admin" 
   const cookie = signIn.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
   const tok = await fetch(`${AUTH}/token`, { headers: { Cookie: cookie, Origin: ORIGIN } });
   const { token } = (await tok.json()) as { token: string };
-  return { email, token };
+  return { email, token, cookie };
 }
 
 type Res = { status: number; body: any };
@@ -297,6 +297,46 @@ const ansHeader = (ans.getRow(1).values as unknown[]).slice(1) as string[];
 const ansRows = (ans.getSheetValues().slice(2).filter(Boolean) as unknown[][]).map((r) => Object.fromEntries(ansHeader.map((h, i) => [h, r[i + 1]])));
 check("workbook: survey answers with labels and numbers", ansRows.some((r) => r["Question key"] === "books_in_home" && r["Answer"] === "1–10") && ansRows.some((r) => r["Question key"] === "read_days_per_week" && r["Answer (number)"] === 2), ansRows.length);
 check("workbook: bad date -> 400", (await wbRes(admin.token, "from=yesterday")).status === 400);
+
+// ---- staff accounts: create with a password, reset, remove and restore access ---------------------
+const authCall = (path: string, cookie: string, body: unknown) =>
+  fetch(`${AUTH}${path}`, { method: "POST", headers: { "Content-Type": "application/json", Origin: ORIGIN, Cookie: cookie }, body: JSON.stringify(body) });
+const signIn = async (email: string, password: string) => {
+  const r = await fetch(`${AUTH}/sign-in/email`, { method: "POST", headers: { "Content-Type": "application/json", Origin: ORIGIN }, body: JSON.stringify({ email, password }) });
+  const cookie = r.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  const body = await r.json().catch(() => ({}));
+  const token = r.ok ? ((await (await fetch(`${AUTH}/token`, { headers: { Cookie: cookie, Origin: ORIGIN } })).json()) as { token?: string }).token : undefined;
+  return { status: r.status, code: (body as { code?: string }).code, token };
+};
+await A("GET", "/api/me"); // an admin's sign-in gets Neon Auth's admin role
+const roleOf = async (email: string) => (await sqlc.query(`select role, banned from neon_auth."user" where email = $1`, [email])).rows[0];
+check("admin on the staff list gets Neon Auth admin role", (await roleOf(admin.email))?.role === "admin", await roleOf(admin.email));
+const internEmail = `e2e-intern-${run}@example.com`;
+const created = await authCall("/admin/create-user", admin.cookie, { email: internEmail, password: "Temp-Pass-12345", name: "E2E Intern", role: "user", data: { emailVerified: true } });
+check("admin creates an account with a password", created.ok, created.status);
+const staffCreate = await authCall("/admin/create-user", staff.cookie, { email: `e2e-nope-${run}@example.com`, password: "Temp-Pass-12345", name: "x" });
+check("staff can't create accounts", !staffCreate.ok, staffCreate.status);
+check("new account before the staff list -> not_staff", (await call((await signIn(internEmail, "Temp-Pass-12345")).token ?? null, "GET", "/api/me")).body?.code === "not_staff");
+await A("POST", "/api/staff", { email: internEmail, role: "staff", active: true });
+const intern = await signIn(internEmail, "Temp-Pass-12345");
+check("intern signs in with the password and uses the app", (await call(intern.token!, "GET", "/api/locations")).status === 200);
+const list = (await A("GET", "/api/staff")).body as any[];
+const row = list.find((r) => r.email === internEmail);
+check("staff list shows the account and how they sign in", row?.authUserId && row.signIn.includes("credential") && row.name === "E2E Intern" && row.lastActive, row);
+const reset = await authCall("/admin/set-user-password", admin.cookie, { userId: row.authUserId, newPassword: "New-Pass-67890" });
+check("admin resets the password; old one stops working", reset.ok && (await signIn(internEmail, "Temp-Pass-12345")).status === 401 && (await signIn(internEmail, "New-Pass-67890")).status === 200);
+const internNow = await signIn(internEmail, "New-Pass-67890");
+await A("POST", "/api/staff", { email: internEmail, role: "staff", active: false });
+check("remove access: their current token is refused at once", (await call(internNow.token!, "GET", "/api/locations")).body?.code === "not_staff");
+const blocked = await signIn(internEmail, "New-Pass-67890");
+check("remove access: they can't sign in again", blocked.status === 403 && blocked.code === "BANNED_USER", blocked);
+check("remove access: sessions ended", Number((await sqlc.query(`select count(*) from neon_auth.session s join neon_auth."user" u on u.id = s."userId" where u.email = $1`, [internEmail])).rows[0].count) === 0);
+await A("POST", "/api/staff", { email: internEmail, role: "admin", active: true });
+const back = await signIn(internEmail, "New-Pass-67890");
+check("restore access (as admin): signs in, Neon Auth role follows", back.status === 200 && (await call(back.token!, "GET", "/api/me")).body?.role === "admin" && (await roleOf(internEmail))?.role === "admin");
+await A("POST", "/api/staff", { email: internEmail, role: "staff", active: true });
+check("make staff again: Neon Auth role back to user", (await roleOf(internEmail))?.role === "user");
+check("admins can't remove their own access", (await A("POST", "/api/staff", { email: admin.email, role: "admin", active: false })).status === 400);
 
 const pre = await fetch(`${API}/api/giveaways`, { method: "OPTIONS", headers: { Origin: ORIGIN, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization,content-type" } });
 check("CORS preflight for the app origin", pre.headers.get("access-control-allow-origin") === ORIGIN);
