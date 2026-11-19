@@ -98,6 +98,7 @@ If staff have since used demo families or locations, the reset stops and lists w
 | `src/domain/` | Card numbers, contact normalization, ages |
 | `web/` | Staff UI (Vite + React) |
 | `scripts/` | Seed, demo data, staff, end-to-end test |
+| `docs/architecture/` | System overview for stakeholders: `architecture.pdf` to share, `architecture.html` to edit |
 
 ## Commands
 

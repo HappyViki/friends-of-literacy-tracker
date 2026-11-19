@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Friends of Literacy Tracker Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one wide system map first, then plain-language reference sections in a single reading column. */
+:root {
+  --bg: #fbf7f4;
+  --surface: #ffffff;
+  --ink: #3f3548;
+  --ink-2: #6b5d72;
+  --line: #e7dbe6;
+  --purple: #8a5ca0;
+  --purple-soft: #f3e9f7;
+  --pink: #b5718f;
+  --pink-soft: #fbe9ee;
+  --slate: #4c5566;
+  --slate-soft: #eef0f4;
+  --green: #2f7a58;
+  --green-soft: #e5f4ec;
+  --amber: #8a5a00;
+  --amber-soft: #fff1d2;
+  --arrow: #6b5d72;
+  --display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1c1820; --surface: #252029; --ink: #eee6f0; --ink-2: #b9aabd; --line: #3b3340;
+    --purple: #c9a2dc; --purple-soft: #33273b; --pink: #e3a3bf; --pink-soft: #3b2630;
+    --slate: #c2c9d6; --slate-soft: #2a2d35; --green: #7fd1a6; --green-soft: #1f3329;
+    --amber: #f1c46a; --amber-soft: #3a2f17; --arrow: #b9aabd; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1c1820; --surface: #252029; --ink: #eee6f0; --ink-2: #b9aabd; --line: #3b3340;
+  --purple: #c9a2dc; --purple-soft: #33273b; --pink: #e3a3bf; --pink-soft: #3b2630;
+  --slate: #c2c9d6; --slate-soft: #2a2d35; --green: #7fd1a6; --green-soft: #1f3329;
+  --amber: #f1c46a; --amber-soft: #3a2f17; --arrow: #b9aabd; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--body); font-size: 17px; line-height: 1.55;
+}
+.wrap {
+  max-width: 1160px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+  display: grid; gap: 56px;
+}
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 26px; font-weight: 700; }
+h3 { font-size: 18px; font-weight: 700; }
+p { margin: 0; }
+.eyebrow { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--purple); font-weight: 700; }
+header { display: grid; gap: 12px; max-width: 760px; }
+header .lede { font-size: 19px; color: var(--ink-2); }
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--slate-soft); padding: 1px 6px; border-radius: 5px; white-space: nowrap; }
+
+.map { display: grid; gap: 14px; }
+.map-frame {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+  overflow-x: auto; padding: 8px;
+}
+.map-frame svg { display: block; width: 100%; min-width: 860px; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.sw { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; }
+.hint { font-size: 14px; color: var(--ink-2); }
+
+svg text { font-family: var(--body); fill: var(--ink); }
+svg .zt { font-family: var(--display); font-weight: 700; font-size: 17px; }
+svg .zs { font-size: 12.5px; fill: var(--ink-2); }
+svg .bt { font-family: var(--display); font-weight: 700; font-size: 15px; }
+svg .bs { font-size: 12.5px; fill: var(--ink-2); }
+svg .lbl { font-size: 12px; fill: var(--ink-2); }
+svg .num { font-family: var(--display); font-weight: 700; font-size: 12px; fill: var(--surface); }
+svg .mono { font-family: var(--mono); font-size: 11.5px; fill: var(--ink); }
+svg .flow { stroke: var(--arrow); stroke-width: 1.6; fill: none; }
+svg .ship { stroke: var(--green); stroke-width: 1.6; fill: none; stroke-dasharray: 6 5; }
+svg .pill { fill: var(--surface); }
+
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; align-items: start; }
+.cols > * { min-width: 0; }
+section { display: grid; gap: 18px; }
+section > .intro { color: var(--ink-2); max-width: 680px; }
+
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: s; }
+ol.steps li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start; }
+ol.steps li::before {
+  counter-increment: s; content: counter(s);
+  width: 26px; height: 26px; border-radius: 50%; background: var(--purple); color: var(--surface);
+  font-family: var(--display); font-weight: 700; font-size: 14px; display: grid; place-items: center; margin-top: 1px;
+}
+ol.steps b { display: block; }
+ol.steps span { color: var(--ink-2); }
+
+table { border-collapse: collapse; width: 100%; font-size: 15.5px; }
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+th, td { text-align: left; vertical-align: top; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); font-weight: 700; background: var(--bg); }
+td:first-child { font-weight: 700; white-space: nowrap; }
+.tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; margin-left: 6px; vertical-align: 1px; }
+.t-v { background: var(--slate-soft); color: var(--slate); }
+.t-n { background: var(--purple-soft); color: var(--purple); }
+.t-o { background: var(--pink-soft); color: var(--pink); }
+.t-g { background: var(--green-soft); color: var(--green); }
+.ok { color: var(--green); }
+.stop { color: var(--pink); }
+
+.note {
+  background: var(--amber-soft); color: var(--ink); border-radius: 14px; padding: 16px 18px;
+  display: grid; gap: 6px;
+}
+.note b { color: var(--amber); }
+ul.plain { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+footer { font-size: 14px; color: var(--ink-2); border-top: 1px solid var(--line); padding-top: 18px; }
+
+/* Print: Letter landscape, light palette, one topic per page. */
+@page { size: letter landscape; margin: 0.45in; }
+@media print {
+  :root, :root:not([data-theme="light"]) { color-scheme: light; }
+  body { font-size: 13.5px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .wrap { max-width: none; padding: 0; gap: 22px; }
+  h1 { font-size: 30px; } h2 { font-size: 21px; }
+  header { gap: 6px; max-width: none; } header .lede { font-size: 15px; }
+  .map-frame { overflow: visible; padding: 4px; }
+  .map-frame svg { min-width: 0; max-height: 4.9in; }
+  .map-frame { break-inside: avoid; }
+  .cols { break-before: page; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .pieces { break-before: page; }
+  .hint { display: none; }
+  table { font-size: 13.5px; } th, td { padding: 9px 12px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Friends of Literacy · staff tracker</div>
+    <h1>How the tracker is put together</h1>
+    <p class="lede">Staff sign families up, give away books and run surveys from one web app. That app lives on Vercel, everything behind it lives in one Neon project, and the code lives on GitHub. This page shows how those pieces connect and what happens when one of them has a bad day.</p>
+  </header>
+
+  <section class="map" aria-labelledby="map-h">
+    <h2 id="map-h">The system at a glance</h2>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--slate-soft);border-color:var(--slate)"></i>Vercel (the website)</span>
+      <span><i class="sw" style="background:var(--purple-soft);border-color:var(--purple)"></i>Neon (sign-in, API, database, AI)</span>
+      <span><i class="sw" style="background:var(--pink-soft);border-color:var(--pink)"></i>Outside services</span>
+      <span><i class="sw" style="background:var(--green-soft);border-color:var(--green)"></i>GitHub and releases</span>
+    </div>
+    <div class="map-frame">
+      <svg viewBox="0 0 1120 680" role="img" aria-labelledby="svg-t svg-d">
+        <title id="svg-t">Architecture map</title>
+        <desc id="svg-d">Staff browsers load the app from Vercel and sign in through a Vercel relay to Neon Auth. The browser sends data requests to the API on Neon, which checks the sign-in token, reads and writes the Postgres database, looks books up in Google Books and Open Library, and asks AI models through the Neon AI Gateway to classify them. Code lives on GitHub and is released by hand to Vercel and Neon.</desc>
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" style="fill:var(--arrow)"/>
+          </marker>
+          <marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" style="fill:var(--green)"/>
+          </marker>
+        </defs>
+
+        <!-- Staff -->
+        <rect x="20" y="150" width="180" height="230" rx="14" style="fill:var(--surface);stroke:var(--ink-2);stroke-width:1.5"/>
+        <text x="40" y="182" class="zt">Staff</text>
+        <text x="40" y="204" class="zs">Phones, tablets and</text>
+        <text x="40" y="221" class="zs">desktops at each</text>
+        <text x="40" y="238" class="zs">location: library,</text>
+        <text x="40" y="255" class="zs">school, community</text>
+        <text x="40" y="272" class="zs">center, market tent</text>
+        <text x="40" y="306" class="bs">Scan library cards</text>
+        <text x="40" y="324" class="bs">and book ISBNs with</text>
+        <text x="40" y="342" class="bs">a barcode scanner</text>
+
+        <!-- Vercel zone -->
+        <rect x="245" y="60" width="240" height="410" rx="16" style="fill:var(--slate-soft);stroke:var(--slate);stroke-width:1.5"/>
+        <text x="265" y="88" class="zt">Vercel</text>
+        <text x="330" y="88" class="zs">hosts the website</text>
+        <rect x="265" y="110" width="200" height="110" rx="12" style="fill:var(--surface);stroke:var(--slate);stroke-width:1.2"/>
+        <text x="281" y="137" class="bt">Sign-in relay</text>
+        <text x="281" y="158" class="bs">Passes sign-in through</text>
+        <text x="281" y="175" class="bs">the site's own address so</text>
+        <text x="281" y="192" class="bs">Safari and other strict</text>
+        <text x="281" y="209" class="bs">browsers allow it</text>
+        <rect x="265" y="320" width="200" height="120" rx="12" style="fill:var(--surface);stroke:var(--slate);stroke-width:1.2"/>
+        <text x="281" y="347" class="bt">Staff web app</text>
+        <text x="281" y="368" class="bs">Front desk, new family,</text>
+        <text x="281" y="385" class="bs">give books, surveys,</text>
+        <text x="281" y="402" class="bs">books, reports, admin</text>
+        <text x="281" y="424" class="lbl">React · English &amp; Spanish</text>
+
+        <!-- Neon zone -->
+        <rect x="525" y="60" width="385" height="410" rx="16" style="fill:var(--purple-soft);stroke:var(--purple);stroke-width:1.5"/>
+        <text x="545" y="88" class="zt">Neon</text>
+        <text x="600" y="88" class="zs">one project, “FoL”</text>
+        <rect x="545" y="110" width="165" height="90" rx="12" style="fill:var(--surface);stroke:var(--purple);stroke-width:1.2"/>
+        <text x="561" y="137" class="bt">Neon Auth</text>
+        <text x="561" y="158" class="bs">Email + password or</text>
+        <text x="561" y="175" class="bs">Google; verifies email</text>
+        <rect x="730" y="110" width="160" height="90" rx="12" style="fill:var(--surface);stroke:var(--purple);stroke-width:1.2"/>
+        <text x="746" y="137" class="bt">AI Gateway</text>
+        <text x="746" y="158" class="bs">One key for several</text>
+        <text x="746" y="175" class="bs">AI models</text>
+        <rect x="545" y="230" width="345" height="90" rx="12" style="fill:var(--surface);stroke:var(--purple);stroke-width:2"/>
+        <text x="561" y="257" class="bt">Tracker API</text>
+        <text x="660" y="257" class="lbl">Neon Function</text>
+        <text x="561" y="279" class="bs">All the rules: who's on the staff list, card numbers,</text>
+        <text x="561" y="296" class="bs">stock never below zero, reports, Excel export</text>
+        <rect x="545" y="350" width="345" height="100" rx="12" style="fill:var(--surface);stroke:var(--purple);stroke-width:1.2"/>
+        <text x="561" y="377" class="bt">Postgres database</text>
+        <text x="561" y="398" class="bs">Families, cards, children, books, stock by location,</text>
+        <text x="561" y="415" class="bs">giveaways, surveys, staff list</text>
+        <rect x="561" y="424" width="88" height="20" rx="10" style="fill:var(--green-soft)"/>
+        <text x="572" y="438" class="lbl" style="fill:var(--green)">production</text>
+        <rect x="657" y="424" width="44" height="20" rx="10" style="fill:var(--slate-soft)"/>
+        <text x="668" y="438" class="lbl">dev</text>
+        <text x="711" y="438" class="lbl">test copies expire after 7 days</text>
+
+        <!-- Outside zone -->
+        <rect x="950" y="60" width="150" height="410" rx="16" style="fill:var(--pink-soft);stroke:var(--pink);stroke-width:1.5"/>
+        <text x="968" y="88" class="zt">Outside</text>
+        <rect x="965" y="110" width="120" height="90" rx="12" style="fill:var(--surface);stroke:var(--pink);stroke-width:1.2"/>
+        <text x="979" y="137" class="bt">AI models</text>
+        <text x="979" y="158" class="bs">OpenAI and</text>
+        <text x="979" y="175" class="bs">Anthropic</text>
+        <rect x="965" y="230" width="120" height="90" rx="12" style="fill:var(--surface);stroke:var(--pink);stroke-width:1.2"/>
+        <text x="979" y="257" class="bt">Book data</text>
+        <text x="979" y="278" class="bs">Google Books,</text>
+        <text x="979" y="295" class="bs">Open Library</text>
+
+        <!-- Request flow arrows -->
+        <path class="flow" d="M200 352 H265" marker-end="url(#ah)"/>
+        <path class="flow" d="M200 178 H265" marker-end="url(#ah)"/>
+        <path class="flow" d="M465 155 H545" marker-end="url(#ah)"/>
+        <path class="flow" d="M200 268 H545" marker-end="url(#ah)"/>
+        <path class="flow" d="M628 230 V200" marker-end="url(#ah)"/>
+        <path class="flow" d="M810 230 V200" marker-end="url(#ah)"/>
+        <path class="flow" d="M717 320 V350" marker-end="url(#ah)"/>
+        <path class="flow" d="M890 275 H965" marker-end="url(#ah)"/>
+        <path class="flow" d="M890 155 H965" marker-end="url(#ah)"/>
+
+        <!-- step numbers -->
+        <circle cx="232" cy="352" r="11" style="fill:var(--purple)"/><text x="228" y="356" class="num">1</text>
+        <circle cx="232" cy="178" r="11" style="fill:var(--purple)"/><text x="228" y="182" class="num">2</text>
+        <circle cx="505" cy="155" r="11" style="fill:var(--purple)"/><text x="501" y="159" class="num">2</text>
+        <rect x="290" y="256" width="168" height="24" rx="12" class="pill" style="stroke:var(--line)"/>
+        <circle cx="304" cy="268" r="9" style="fill:var(--purple)"/><text x="300.5" y="272" class="num">3</text>
+        <text x="318" y="272" class="lbl">requests + sign-in token</text>
+        <circle cx="642" cy="215" r="9" style="fill:var(--purple)"/><text x="638.5" y="219" class="num">4</text>
+        <text x="656" y="219" class="lbl">check token</text>
+        <circle cx="731" cy="335" r="9" style="fill:var(--purple)"/><text x="727.5" y="339" class="num">5</text>
+        <text x="745" y="339" class="lbl">read &amp; save</text>
+        <circle cx="927" cy="262" r="9" style="fill:var(--purple)"/><text x="923.5" y="266" class="num">6</text>
+        <circle cx="824" cy="215" r="9" style="fill:var(--purple)"/><text x="820.5" y="219" class="num">7</text>
+        <text x="838" y="219" class="lbl">classify</text>
+
+        <!-- Shipping band -->
+        <rect x="20" y="520" width="1080" height="140" rx="16" style="fill:var(--green-soft);stroke:var(--green);stroke-width:1.5"/>
+        <text x="40" y="548" class="zt">How changes ship</text>
+        <rect x="40" y="566" width="230" height="76" rx="12" style="fill:var(--surface);stroke:var(--green);stroke-width:1.2"/>
+        <text x="56" y="592" class="bt">GitHub</text>
+        <text x="56" y="612" class="bs">Code + pull requests;</text>
+        <text x="56" y="629" class="bs">merged into main</text>
+        <path class="ship" d="M270 604 H330" marker-end="url(#ahg)"/>
+        <rect x="330" y="566" width="320" height="76" rx="12" style="fill:var(--surface);stroke:var(--green);stroke-width:1.2"/>
+        <text x="346" y="590" class="bt">Released by hand</text>
+        <text x="346" y="611" class="mono">vercel deploy --prod   → website</text>
+        <text x="346" y="630" class="mono">npm run deploy:production → API</text>
+        <path class="ship" d="M365 566 V470" marker-end="url(#ahg)"/>
+        <path class="ship" d="M650 604 H700 V470" marker-end="url(#ahg)"/>
+        <text x="720" y="584" class="bs">Database changes are versioned migration files</text>
+        <text x="720" y="603" class="bs">in the repo, applied with <tspan class="mono">npm run db:migrate</tspan>.</text>
+        <text x="720" y="628" class="bs" style="fill:var(--amber);font-weight:700">Merging to main does not deploy anything</text>
+        <text x="720" y="645" class="bs">on its own. No automatic CI runs today.</text>
+      </svg>
+    </div>
+    <p class="hint">Numbers follow one staff visit, in order. They match the steps below. On a phone, scroll the map sideways.</p>
+  </section>
+
+  <div class="cols">
+    <section aria-labelledby="flow-h">
+      <h2 id="flow-h">One visit, step by step</h2>
+      <ol class="steps">
+        <li><div><b>Open the app</b><span>The browser loads the staff web app from Vercel.</span></div></li>
+        <li><div><b>Sign in</b><span>Staff sign in with email or Google. The request goes through the relay on Vercel to Neon Auth, which confirms the email address with a code.</span></div></li>
+        <li><div><b>Ask the API</b><span>Every search, intake or giveaway goes from the browser straight to the Tracker API on Neon, carrying the sign-in token.</span></div></li>
+        <li><div><b>Check who's asking</b><span>The API confirms the token with Neon Auth, then checks the email is verified and on the staff list.</span></div></li>
+        <li><div><b>Read and save</b><span>The API reads or writes families, books, stock and survey answers in Postgres. Two staff giving the last copy at once can't push stock below zero.</span></div></li>
+        <li><div><b>Look up a new book</b><span>The first time an ISBN is scanned, the API fetches its title, author and cover from Google Books, then Open Library.</span></div></li>
+        <li><div><b>Classify it once</b><span>AI models, reached through the Neon AI Gateway, tag the book's genre, reading level and language. The answer is saved with its source, so each ISBN is only classified once.</span></div></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="safe-h">
+      <h2 id="safe-h">Who can get in, and where data goes</h2>
+      <ul class="plain">
+        <li>Anyone can create a sign-in account, but the API only answers verified emails that an admin has added to the staff list.</li>
+        <li>Admins add other staff, locations and surveys. Only admins can download the Excel workbook for building reports.</li>
+        <li>Family details (names, contacts, children, ZIP, survey answers) are stored only in the Neon database.</li>
+        <li>Only book details, such as the ISBN, title and authors, go to the book catalogs and the AI models. Family information is never sent to them.</li>
+        <li>Testing happens on a separate <b>dev</b> copy of the database filled with made-up families. The demo script refuses to run on production.</li>
+      </ul>
+      <div class="note">
+        <b>Release process today</b>
+        <p>One person runs the deploy commands from a laptop. That keeps things simple, but a merged fix stays unreleased until someone deploys it. Automatic deploys from GitHub would be an easy next step.</p>
+      </div>
+    </section>
+  </div>
+
+  <section class="pieces" aria-labelledby="pieces-h">
+    <h2 id="pieces-h">What each piece does, and what happens if it's down</h2>
+    <p class="intro">Most pieces have a fallback. The two that don't are sign-in and the database.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Piece</th><th>Its job</th><th>If it's unavailable</th></tr></thead>
+        <tbody>
+          <tr><td>Vercel <span class="tag t-v">website</span></td><td>Serves the staff web app and relays sign-in so strict browsers accept it.</td><td class="stop">The app doesn't load.</td></tr>
+          <tr><td>Neon Auth <span class="tag t-n">Neon</span></td><td>Accounts, passwords, Google sign-in, email verification.</td><td class="stop">No one can sign in.</td></tr>
+          <tr><td>Tracker API <span class="tag t-n">Neon</span></td><td>All business rules: staff checks, library card numbers, stock, giveaways, surveys, reports, export.</td><td class="stop">The app opens but can't search or save.</td></tr>
+          <tr><td>Postgres <span class="tag t-n">Neon</span></td><td>The record of every family, book, copy, visit and survey answer.</td><td class="stop">The app opens but can't search or save.</td></tr>
+          <tr><td>AI Gateway <span class="tag t-n">Neon</span></td><td>Classifies new books. Tries three models in order.</td><td class="ok">Keyword rules classify the book instead. Needs gateway credits on the Neon account.</td></tr>
+          <tr><td>Google Books <span class="tag t-o">outside</span></td><td>Book title, author and cover for a scanned ISBN.</td><td class="ok">Open Library answers instead.</td></tr>
+          <tr><td>Open Library <span class="tag t-o">outside</span></td><td>Backup book lookup.</td><td class="ok">If both catalogs miss, staff add the book by hand.</td></tr>
+          <tr><td>GitHub <span class="tag t-g">code</span></td><td>Source code, history and pull request review.</td><td class="ok">The running app isn't affected.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Based on the <span class="mono">friends-of-literacy-tracker</span> repository as of November 2026: README, <span class="mono">neon.ts</span>, <span class="mono">vite.config.ts</span> and the API source.</footer>
+</div>
+
+</body>
+</html>
