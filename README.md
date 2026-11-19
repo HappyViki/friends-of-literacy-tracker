@@ -57,6 +57,7 @@ account's **email to be verified** and listed in `staff_members`. Add the first 
 | `npm run deploy` | Deploy the API to the linked branch |
 | `npm test` | Unit tests |
 | `npm run test:e2e` | End-to-end test against the deployed API (refuses to run on production) |
+| `npm run test:smoke` | Production-safe smoke test (needs `neon env pull --branch production --file .env.production`) |
 | `npm run build` / `npm start` | Build / serve the staff UI |
 
 ## API

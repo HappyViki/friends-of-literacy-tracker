@@ -13,7 +13,8 @@
     "test": "node --import tsx --test test/*.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:seed": "node --env-file=.env.local --import tsx scripts/seed.ts",
-    "staff:add": "node --env-file=.env.local --import tsx scripts/staff.ts"
+    "staff:add": "node --env-file=.env.local --import tsx scripts/staff.ts",
+    "test:smoke": "node --env-file=.env.production --import tsx scripts/smoke.ts"
   },
   "dependencies": {
     "@neon/auth": "^0.8.2",
