@@ -158,6 +158,29 @@ export async function summary(query: Record<string, string | undefined>) {
     ),
   ]);
 
+  const [byReadingLevel, byBookLanguage, byAgeAndReadingLevel] = await Promise.all([
+    q(
+      `select coalesce(b.reading_level, 'Unknown') as reading_level, sum(i.quantity)::int as books
+       from distributions d join distribution_items i on i.distribution_id = d.id join books b on b.isbn = i.isbn
+       where ${dist} group by 1 order by 2 desc`,
+      p,
+    ),
+    q(
+      `select coalesce(b.language, 'Unknown') as language, sum(i.quantity)::int as books
+       from distributions d join distribution_items i on i.distribution_id = d.id join books b on b.isbn = i.isbn
+       where ${dist} group by 1 order by 2 desc`,
+      p,
+    ),
+    q(
+      `select child_age_bracket(c.birth_year, c.birth_month, d.distributed_at) as age_bracket,
+              coalesce(b.reading_level, 'Unknown') as reading_level, sum(i.quantity)::int as books
+       from distributions d join distribution_items i on i.distribution_id = d.id
+       join children c on c.id = i.child_id join books b on b.isbn = i.isbn
+       where ${dist} group by 1, 2 order by 1, 3 desc`,
+      p,
+    ),
+  ]);
+
   return {
     filters: f,
     families: families[0],
@@ -165,10 +188,13 @@ export async function summary(query: Record<string, string | undefined>) {
       ...totals[0],
       byCondition,
       byCategory,
+      byReadingLevel,
+      byBookLanguage,
       byLocation,
       byMonth,
       byChildAgeBracket: byAgeBracket,
       byChildAgeBracketAndCategory: byAgeAndCategory,
+      byChildAgeBracketAndReadingLevel: byAgeAndReadingLevel,
       byHomeLanguage: byLanguage,
     },
     stockOnHand: stock,

@@ -17,3 +17,24 @@ test("unknown replies return null", () => {
   assert.equal(matchCategory(""), null);
   assert.equal(matchCategory(null), null);
 });
+
+import { languageFromCode, matchOption, READING_LEVELS } from "../src/books/categories.ts";
+
+test("language codes map to English / Spanish / Other", () => {
+  assert.equal(languageFromCode("en"), "English");
+  assert.equal(languageFromCode("eng"), "English");
+  assert.equal(languageFromCode("/languages/spa"), "Spanish");
+  assert.equal(languageFromCode("es-MX"), "Spanish");
+  assert.equal(languageFromCode("fre"), "Other");
+  assert.equal(languageFromCode("mul"), null);
+  assert.equal(languageFromCode("eng,spa"), "Bilingual");
+  assert.equal(languageFromCode("spa,und"), "Spanish");
+  assert.equal(languageFromCode("eng,spa,kor"), null);
+  assert.equal(languageFromCode(null), null);
+});
+
+test("reading level replies match whole words only", () => {
+  assert.equal(matchOption("YA", READING_LEVELS), "YA");
+  assert.equal(matchOption("It's a picture book.", READING_LEVELS), "Picture Book");
+  assert.equal(matchOption("maybe", READING_LEVELS), null);
+});

@@ -10,7 +10,6 @@ import * as families from "../services/households.ts";
 import * as giveaways from "../services/giveaways.ts";
 import * as reports from "../services/reports.ts";
 import * as surveys from "../services/surveys.ts";
-import { CATEGORIES } from "../books/categories.ts";
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean);
 
@@ -57,7 +56,7 @@ api.post("/households/:id/cards", async (c) => c.json(await families.replaceCard
 api.get("/cards/:number", async (c) => c.json(await families.byCard(c.req.param("number"))));
 
 // Books and inventory
-api.get("/categories", (c) => c.json({ categories: CATEGORIES }));
+api.get("/categories", (c) => c.json(bookSvc.classificationOptions()));
 api.get("/books/:isbn", async (c) => c.json(await bookSvc.scan(c.req.param("isbn"), { refresh: c.req.query("refresh") === "1" })));
 api.post("/books", async (c) => c.json(await bookSvc.addBookByHand(await json(c)), 201));
 api.get("/inventory", async (c) => {

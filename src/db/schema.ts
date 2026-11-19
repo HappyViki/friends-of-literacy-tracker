@@ -166,9 +166,21 @@ export const books = pgTable("books", {
   // "google", "openlibrary" or "google+openlibrary".
   source: text("source").notNull(),
   category: text("category").notNull(),
-  // Model that picked the category, or "rules" when no model answered (retried on the next scan).
+  // Each classification has a value, a source and a 0–1 confidence (OpenAI Decisions API only).
+  // Source is the model that answered, "metadata" (language only), "rules" when no model answered
+  // (retried on the next scan), "manual" or "demo".
   categoryModel: text("category_model").notNull(),
   categoryConfidence: real("category_confidence"),
+  // Board Book | Picture Book | Early Reader | Chapter Book | YA | Adult (src/books/categories.ts).
+  readingLevel: text("reading_level"),
+  readingLevelSource: text("reading_level_source"),
+  readingLevelConfidence: real("reading_level_confidence"),
+  // English | Spanish | Bilingual | Other. Null when neither the metadata nor a model says.
+  language: text("language"),
+  languageSource: text("language_source"),
+  languageConfidence: real("language_confidence"),
+  // Raw code from the source, e.g. "en" or "spa".
+  languageCode: text("language_code"),
   raw: jsonb("raw"),
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

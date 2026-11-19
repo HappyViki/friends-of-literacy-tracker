@@ -15,8 +15,8 @@ import {
 import { db, pool, type Tx } from "../api/db.ts";
 import { HttpError, parse } from "../api/errors.ts";
 import type { Staff } from "../api/auth.ts";
-import { CATEGORIES } from "../books/categories.ts";
-import { categorize, hasAiProvider } from "../books/categorize.ts";
+import { CATEGORIES, LANGUAGES, READING_LEVELS } from "../books/categories.ts";
+import { classify, hasAiProvider, type Classification } from "../books/categorize.ts";
 import { lookupBook } from "../books/lookup.ts";
 import { normalizeIsbn } from "../books/isbn.ts";
 
@@ -36,39 +36,76 @@ export function requireIsbn(input: string): string {
 export async function ensureBook(isbnInput: string, opts: { refresh?: boolean } = {}): Promise<{ book: BookRow; firstScan: boolean }> {
   const isbn = requireIsbn(isbnInput);
   const [cached] = await db.select().from(books).where(eq(books.isbn, isbn));
-  if (cached && !opts.refresh) {
-    // A book the keyword rules categorized gets another try once an AI model is configured.
-    if (cached.categoryModel === "rules" && hasAiProvider()) {
-      const result = await categorize({ ...cached, source: cached.source as "google", raw: {} });
-      if (result.model !== "rules") {
-        const [row] = await db
-          .update(books)
-          .set({ category: result.category, categoryModel: result.model, categoryConfidence: result.confidence, updatedAt: sql`now()` })
-          .where(eq(books.isbn, isbn))
-          .returning();
-        return { book: row, firstScan: false };
-      }
-    }
-    return { book: cached, firstScan: false };
+  const handEntered = cached && (cached.categoryModel === "manual" || cached.categoryModel === "demo");
+  if (cached && (!opts.refresh || handEntered)) {
+    if (handEntered || !needsClassifying(cached)) return { book: cached, firstScan: false };
+    const [row] = await db
+      .update(books)
+      .set({ ...classificationColumns(await classify(toInfo(cached))), updatedAt: sql`now()` })
+      .where(eq(books.isbn, isbn))
+      .returning();
+    return { book: row, firstScan: false };
   }
-  if (cached?.categoryModel === "manual" && opts.refresh) return { book: cached, firstScan: false };
 
   const info = await lookupBook(isbn, process.env.GOOGLE_BOOKS_API_KEY);
   if (!info) {
     if (cached) return { book: cached, firstScan: false };
     throw new HttpError(404, "Couldn't find this ISBN in Google Books or Open Library. Add it by hand.", { isbn, code: "isbn_not_found" });
   }
-  const { category, model, confidence } = await categorize(info);
-  const values = { ...info, category, categoryModel: model, categoryConfidence: confidence, updatedAt: sql`now()` };
+  const values = { ...info, ...classificationColumns(await classify(info)), updatedAt: sql`now()` };
   const [row] = await db.insert(books).values(values).onConflictDoUpdate({ target: books.isbn, set: values }).returning();
   return { book: row, firstScan: !cached };
 }
+
+/**
+ * A saved book is classified again when it predates the reading-level column, or when an AI provider
+ * is configured and some answer came from rules, a single metadata language, or is missing.
+ */
+function needsClassifying(row: BookRow): boolean {
+  if (row.readingLevel === null) return true;
+  if (!hasAiProvider()) return false;
+  return (
+    row.categoryModel === "rules" ||
+    row.readingLevelSource === "rules" ||
+    row.language === null ||
+    row.languageSource === "rules" ||
+    // A single metadata language can miss a bilingual book; let the AI check it.
+    (row.languageSource === "metadata" && row.language !== "Bilingual")
+  );
+}
+
+function classificationColumns(c: Classification) {
+  return {
+    category: c.category.value,
+    categoryModel: c.category.source,
+    categoryConfidence: c.category.confidence,
+    readingLevel: c.readingLevel.value,
+    readingLevelSource: c.readingLevel.source,
+    readingLevelConfidence: c.readingLevel.confidence,
+    language: c.language?.value ?? null,
+    languageSource: c.language?.source ?? null,
+    languageConfidence: c.language?.confidence ?? null,
+  };
+}
+
+const toInfo = (row: BookRow) => ({ ...row, source: row.source as "google", raw: {} });
+
+export const classificationOptions = () => ({
+  categories: CATEGORIES,
+  readingLevels: READING_LEVELS.map((o) => o.value),
+  languages: LANGUAGES.map((o) => o.value),
+});
+
+const readingLevelValues = READING_LEVELS.map((o) => o.value) as [string, ...string[]];
+const languageValues = LANGUAGES.map((o) => o.value) as [string, ...string[]];
 
 const manualBookInput = z.object({
   isbn: z.string(),
   title: z.string().trim().min(1).max(300),
   authors: z.array(z.string().trim().min(1).max(200)).max(10).default([]),
   category: z.enum(CATEGORIES),
+  readingLevel: z.enum(readingLevelValues),
+  language: z.enum(languageValues).optional().nullable(),
 });
 
 /** For books the lookup services don't know (older or local printings). */
@@ -83,6 +120,12 @@ export async function addBookByHand(body: unknown) {
     category: input.category,
     categoryModel: "manual",
     categoryConfidence: null,
+    readingLevel: input.readingLevel,
+    readingLevelSource: "manual",
+    readingLevelConfidence: null,
+    language: input.language ?? null,
+    languageSource: input.language ? "manual" : null,
+    languageConfidence: null,
     updatedAt: sql`now()`,
   };
   const [row] = await db.insert(books).values(values).onConflictDoUpdate({ target: books.isbn, set: values }).returning();

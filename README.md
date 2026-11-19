@@ -15,8 +15,11 @@ repo root for reference. The app lives in `src/` (API) and `web/` (staff UI).
   replaced; the old number still finds the family.
 - **Finding families**: card number (typed or scanned), email, phone in any format, or a
   typo-tolerant name search (guardian or child name).
-- **Books**: scan an ISBN; the book is looked up (Google Books, Open Library) and categorized
-  (OpenAI Decisions API, then Neon AI Gateway, then keyword rules) once per ISBN.
+- **Books**: scan an ISBN; the book is looked up (Google Books, Open Library) and classified once per
+  ISBN three ways: genre, **reading level** (Board Book, Picture Book, Early Reader, Chapter Book,
+  YA, Adult) and **language** (English, Spanish, Bilingual, Other). Each answer keeps its source and
+  confidence (OpenAI Decisions API, then Neon AI Gateway, then keyword rules; language also from
+  the book's metadata). Books the services don't know can be added by hand.
   Stock is tracked per **location** and **condition (new/used)**.
 - **Giveaways**: scan the card, scan the books. Stock can't go below zero, even with two staff
   at once. Scanning a book shows when, where and to which card each copy was given.
@@ -24,7 +27,7 @@ repo root for reference. The app lives in `src/` (API) and `web/` (staff UI).
   in English and Spanish. Questions share stable keys (`books_in_home`, `everyone_reads`,
   `read_days_per_week`) so reports compare answers across surveys and over time.
 - **Reports**: families served (new/returning), books by category, condition, location, month,
-  child age bracket and home language; reading days per week (first vs. latest); books at home;
+  reading level, book language, child age bracket and home language; reading days per week (first vs. latest); books at home;
   share of homes where everyone reads; stock on hand.
 
 ## Access

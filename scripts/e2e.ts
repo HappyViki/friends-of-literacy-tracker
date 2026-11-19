@@ -126,6 +126,16 @@ const CATERPILLAR = "9780399226908"; // The Very Hungry Caterpillar
 const DUNE_10 = "0441172717"; // Dune, ISBN-10 form
 const scan1 = await S("GET", `/api/books/${CATERPILLAR}`);
 check("scan ISBN: looked up and categorized", scan1.status === 200 && !!scan1.body?.book?.title && !!scan1.body.book.category, [scan1.body?.book?.title, scan1.body?.book?.category, scan1.body?.book?.categoryModel]);
+check("scan: reading level and language", ["Board Book", "Picture Book", "Early Reader"].includes(scan1.body?.book?.readingLevel) && scan1.body?.book?.language === "English", [scan1.body?.book?.readingLevel, scan1.body?.book?.readingLevelSource, scan1.body?.book?.language, scan1.body?.book?.languageSource]);
+const options = (await S("GET", "/api/categories")).body;
+check("classification options", options?.readingLevels?.includes("Board Book") && options?.languages?.includes("Bilingual") && options?.categories?.includes("Other"));
+// A made-up but checksum-valid ISBN that the lookup services won't know.
+const isbn12 = `979${String(Math.floor(Math.random() * 1e9)).padStart(9, "0")}`;
+const madeUp = isbn12 + ((10 - ([...isbn12].reduce((a, ch, i) => a + Number(ch) * (i % 2 ? 3 : 1), 0) % 10)) % 10);
+const manual = await S("POST", "/api/books", { isbn: madeUp, title: "Colors / Colores", authors: ["Local Author"], category: "Children's", readingLevel: "Board Book", language: "Bilingual" });
+check("add a book by hand with reading level and language", manual.status === 201 && manual.body?.readingLevel === "Board Book" && manual.body?.language === "Bilingual", manual.body?.error);
+check("hand-entered book scans without a lookup", (await S("GET", `/api/books/${madeUp}`)).body?.book?.categoryModel === "manual");
+check("bad reading level -> 400", (await S("POST", "/api/books", { isbn: madeUp, title: "x", category: "Children's", readingLevel: "Novel" })).status === 400);
 check("scan says whether the book was new to the catalog", typeof scan1.body?.firstScan === "boolean", scan1.body?.firstScan);
 check("scan again: already in catalog", (await S("GET", `/api/books/${CATERPILLAR}`)).body?.firstScan === false);
 check("bad ISBN -> 400", (await S("GET", "/api/books/9780399226909")).status === 400);
@@ -217,6 +227,7 @@ check("family detail: books received, giveaways, surveys", detail.booksReceived 
 const rep = (await S("GET", `/api/reports/summary?locationId=${L1}`)).body;
 check("report: books given at location", rep.booksGivenAway?.books === 2 && rep.families?.served === 1, rep.booksGivenAway && { books: rep.booksGivenAway.books, families: rep.families });
 check("report: by condition and category", rep.booksGivenAway.byCondition.length === 2 && rep.booksGivenAway.byCategory.length >= 1, rep.booksGivenAway.byCategory);
+check("report: by reading level and book language", rep.booksGivenAway.byReadingLevel.length >= 1 && rep.booksGivenAway.byBookLanguage.some((r: any) => r.language === "English"), [rep.booksGivenAway.byReadingLevel, rep.booksGivenAway.byBookLanguage]);
 check("report: by child age bracket", rep.booksGivenAway.byChildAgeBracket.some((r: any) => r.age_bracket === "3-5" && r.books === 1), rep.booksGivenAway.byChildAgeBracket);
 check("report: by home language", rep.booksGivenAway.byHomeLanguage.some((r: any) => r.language === "Spanish"), rep.booksGivenAway.byHomeLanguage);
 check("report: reading days change (2 -> 5)", rep.surveys.readDaysPerWeek.changeForReturningFamilies.first_average === 2 && rep.surveys.readDaysPerWeek.changeForReturningFamilies.latest_average === 5, rep.surveys.readDaysPerWeek);

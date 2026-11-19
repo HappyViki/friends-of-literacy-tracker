@@ -16,6 +16,8 @@ export interface BookInfo {
   description: string | null;
   coverUrl: string | null;
   sourceCategories: string[];
+  /** Language codes as the source reports them: "en" from Google, "eng,spa" from Open Library. */
+  languageCode: string | null;
   source: "google" | "openlibrary" | "google+openlibrary";
   raw: { google?: unknown; openlibrary?: unknown };
 }
@@ -70,6 +72,7 @@ export async function googleBooks(isbn: string, apiKey?: string): Promise<{ book
       description: v.description ?? null,
       coverUrl: cover ? cover.replace(/^http:/, "https:") : null,
       sourceCategories: v.categories ?? [],
+      languageCode: v.language ?? null,
     },
   };
 }
@@ -103,6 +106,8 @@ export async function openLibrary(isbn: string): Promise<{ book: Partial; raw: u
       pageCount: d.number_of_pages ?? null,
       description,
       coverUrl: d.cover?.large ?? d.cover?.medium ?? null,
+      languageCode:
+        (edition?.languages ?? []).map((l: { key: string }) => l.key.replace("/languages/", "")).join(",") || null,
       sourceCategories: (d.subjects ?? [])
         .map((s: { name: string }) => s.name)
         // Drop machine tags such as "nyt:trade-fiction-paperback=2021-11-07".
@@ -113,7 +118,9 @@ export async function openLibrary(isbn: string): Promise<{ book: Partial; raw: u
 }
 
 function hasGaps(b: Partial): boolean {
-  return !b.description || !b.coverUrl || b.sourceCategories.length === 0 || b.authors.length === 0;
+  return (
+    !b.description || !b.coverUrl || b.sourceCategories.length === 0 || b.authors.length === 0 || !b.pageCount
+  );
 }
 
 /** Google Books first. Open Library fills gaps, or answers alone when Google has nothing. */
@@ -138,6 +145,8 @@ export async function lookupBook(isbn: string, googleApiKey?: string): Promise<B
     pageCount: g.pageCount ?? o.pageCount,
     description: g.description ?? o.description,
     coverUrl: g.coverUrl ?? o.coverUrl,
+    // Open Library can list several languages for a bilingual edition; Google lists one.
+    languageCode: o.languageCode?.includes(",") ? o.languageCode : (g.languageCode ?? o.languageCode),
     sourceCategories: [...new Set([...g.sourceCategories, ...o.sourceCategories])],
     source: "google+openlibrary",
     raw: { google: google.raw, openlibrary: ol.raw },
