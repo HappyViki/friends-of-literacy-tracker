@@ -2,6 +2,7 @@
 // it creates test staff, families, locations and stock).
 // Usage: npm run test:e2e
 import pg from "pg";
+import ExcelJS from "exceljs";
 import { functionBaseUrl } from "@neon/env";
 
 if (process.env.NEON_BRANCH === "production") {
@@ -275,6 +276,27 @@ check("export: row count header matches", Number(ex.count) === exLines.length - 
 const exPhone = await exportCsv(admin.token, `channel=phone&locationId=${L1}`);
 check("export: phone list has E.164 numbers", exPhone.text.includes(`+1${phoneDigits}`), exPhone.count);
 check("export: bad channel -> 400", (await exportCsv(admin.token, "channel=fax")).status === 400);
+
+// ---- Excel workbook for do-it-yourself reports (admins) ------------------------------------------
+const wbRes = (token: string, q: string) => fetch(`${API}/api/exports/workbook?${q}`, { headers: { Authorization: `Bearer ${token}` } });
+check("staff can't download the workbook -> 403", (await wbRes(staff.token, "")).status === 403);
+const wbr = await wbRes(admin.token, `locationId=${L1}`);
+const wbBuf = Buffer.from(await wbr.arrayBuffer());
+check("workbook: xlsx download", wbr.status === 200 && /spreadsheetml/.test(wbr.headers.get("content-type") ?? "") && wbBuf.subarray(0, 2).toString() === "PK", [wbr.status, wbr.headers.get("content-type")]);
+const wb = new ExcelJS.Workbook();
+await wb.xlsx.load(wbBuf as unknown as ArrayBuffer);
+check("workbook: all tabs", ["Read me", "Books given", "Visits", "Families", "Adults", "Children", "Survey answers", "Books received", "Stock now"].every((n) => wb.getWorksheet(n)), wb.worksheets.map((w) => w.name));
+const given = wb.getWorksheet("Books given")!;
+const givenRows = given.getSheetValues().slice(2).filter(Boolean) as unknown[][];
+const header = (given.getRow(1).values as unknown[]).slice(1) as string[];
+const col = (n: string) => header.indexOf(n) + 1;
+check("workbook: location filter (2 books at this location)", givenRows.length === 2 && givenRows.every((r) => r[col("Location")] === locA.body.code), givenRows.length);
+check("workbook: real dates and child age group", givenRows.some((r) => r[col("Date")] instanceof Date && r[col("Child")] === "Sofia" && r[col("Child age group")] === "3-5"), givenRows[0]?.slice(1, 13));
+const ans = wb.getWorksheet("Survey answers")!;
+const ansHeader = (ans.getRow(1).values as unknown[]).slice(1) as string[];
+const ansRows = (ans.getSheetValues().slice(2).filter(Boolean) as unknown[][]).map((r) => Object.fromEntries(ansHeader.map((h, i) => [h, r[i + 1]])));
+check("workbook: survey answers with labels and numbers", ansRows.some((r) => r["Question key"] === "books_in_home" && r["Answer"] === "1–10") && ansRows.some((r) => r["Question key"] === "read_days_per_week" && r["Answer (number)"] === 2), ansRows.length);
+check("workbook: bad date -> 400", (await wbRes(admin.token, "from=yesterday")).status === 400);
 
 const pre = await fetch(`${API}/api/giveaways`, { method: "OPTIONS", headers: { Origin: ORIGIN, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization,content-type" } });
 check("CORS preflight for the app origin", pre.headers.get("access-control-allow-origin") === ORIGIN);
