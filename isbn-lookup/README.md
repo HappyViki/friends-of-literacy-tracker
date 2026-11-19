@@ -1,16 +1,26 @@
 # ISBN lookup function
 
-A Neon Function that takes an ISBN, finds the book, and puts it in one of the categories in
-[`src/categories.ts`](src/categories.ts). Results are cached in Postgres, so each ISBN is
-looked up and categorized once.
+A Neon Function that takes an ISBN, finds the book, and classifies it three ways:
+
+| Field | Options |
+| --- | --- |
+| `readingLevel` | Board Book, Picture Book, Early Reader, Chapter Book, YA, Adult |
+| `language` | English, Spanish, Other |
+| `category` (genre) | The list in [`src/categories.ts`](src/categories.ts) |
+
+All three lists live in `src/categories.ts`. Results are cached in Postgres, so each ISBN is
+looked up and classified once.
 
 ```bash
-curl -H "x-api-key: $BOOKS_API_KEY" https://<branch-id>-books.compute.<cell>.us-east-2.aws.neon.tech/books/978-0-441-17271-9
+curl -H "x-api-key: $BOOKS_API_KEY" https://<branch-id>-books.compute.<cell>.us-east-2.aws.neon.tech/books/9780064434225
 ```
 
 ```json
-{ "isbn": "9780441172719", "title": "Dune", "authors": ["Frank Herbert"], "category": "Science Fiction",
-  "categoryModel": "neon-gateway:claude-haiku-5-5", "source": "openlibrary", "coverUrl": "https://…", "cached": false }
+{ "isbn": "9780064434225", "title": "Donde viven los monstruos", "authors": ["Maurice Sendak"],
+  "readingLevel": "Picture Book", "readingLevelSource": "openai-decisions:gpt-6-luna", "readingLevelConfidence": 1,
+  "language": "Spanish", "languageSource": "metadata", "languageCode": "spa",
+  "category": "Children's", "categoryModel": "openai-decisions:gpt-6-luna", "categoryConfidence": 0.94,
+  "source": "openlibrary", "coverUrl": "https://…", "cached": false }
 ```
 
 ## How it works
@@ -19,20 +29,25 @@ curl -H "x-api-key: $BOOKS_API_KEY" https://<branch-id>-books.compute.<cell>.us-
 2. **Cache**: return the `books` row if there is one. Add `?refresh=1` to look the book up again.
 3. **Look up** the book in Google Books. Open Library fills in missing fields, or answers on its
    own when Google has nothing or is rate-limited.
-4. **Categorize** with the [OpenAI Decisions API](https://developers.openai.com/api/docs/guides/decisions):
-   one `choice` question whose options are the categories, so the answer is always on the list
-   and comes with a `categoryConfidence` from 0 to 1. Next come the Neon AI Gateway
-   (`claude-haiku-5-5`, then `gpt-5-nano`) and OpenCode, if configured. If no model answers,
-   keyword rules match the book's subjects and set `categoryModel: "rules"`. Those rows are
-   re-categorized on their next lookup once a model works.
+4. **Language from metadata**: when the book data has a language code (`en`, `spa`, …), it
+   decides `language` (`languageSource: "metadata"`).
+5. **Classify** everything still open with one request to the
+   [OpenAI Decisions API](https://developers.openai.com/api/docs/guides/decisions): one `choice`
+   question per field, so every answer is on its list and comes with a confidence from 0 to 1.
+   Questions it refuses go to the Neon AI Gateway (`claude-haiku-5-5`, then `gpt-5-nano`) and
+   OpenCode, if configured.
+6. **Rules** answer anything no model did: keyword rules on the book's subjects for `category`,
+   subjects plus page count for `readingLevel`. Their source is `"rules"`, and those rows are
+   classified again on their next lookup once a model works. `language` stays `null` when
+   neither the metadata nor a model says.
 
 ## Routes
 
 | Route | Auth | |
 | --- | --- | --- |
 | `GET /` | none | Health check |
-| `GET /books/:isbn` | API key | Lookup and category. 400 for an invalid ISBN, 404 when neither API has the book |
-| `GET /categories` | API key | The category list |
+| `GET /books/:isbn` | API key | Lookup and classification. 400 for an invalid ISBN, 404 when neither API has the book |
+| `GET /categories` | API key | The three option lists |
 
 Send the key as `x-api-key: …` or `Authorization: Bearer …`. Don't put it in browser code:
 call the function from your server.

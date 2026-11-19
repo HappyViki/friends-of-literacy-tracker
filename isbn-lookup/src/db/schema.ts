@@ -15,11 +15,24 @@ export const books = pgTable("books", {
   sourceCategories: text("source_categories").array().notNull().default([]),
   // Which API the metadata came from: "google", "openlibrary", or "google+openlibrary".
   source: text("source").notNull(),
+  // Each classification has a value, a source and a confidence. The source is the model that
+  // answered (e.g. "openai-decisions:gpt-6-luna"), "metadata" (language only), or "rules" when no
+  // model answered; "rules" answers are retried on the next lookup. Confidence is 0–1 from the
+  // OpenAI Decisions API and null otherwise.
   category: text("category").notNull(),
-  // Model that picked the category, or "rules" when no model answered (retried on the next lookup).
   categoryModel: text("category_model").notNull(),
-  // 0–1 confidence from the OpenAI Decisions API; null for chat models and rules.
   categoryConfidence: real("category_confidence"),
+  // Board Book | Picture Book | Early Reader | Chapter Book | YA | Adult. Null only on rows saved
+  // before this column existed; those are classified on their next lookup.
+  readingLevel: text("reading_level"),
+  readingLevelSource: text("reading_level_source"),
+  readingLevelConfidence: real("reading_level_confidence"),
+  // English | Spanish | Other. Null when neither the metadata nor a model says.
+  language: text("language"),
+  languageSource: text("language_source"),
+  languageConfidence: real("language_confidence"),
+  // Raw code from the source, e.g. "en" or "spa".
+  languageCode: text("language_code"),
   raw: jsonb("raw"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

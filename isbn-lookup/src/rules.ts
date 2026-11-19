@@ -1,6 +1,6 @@
 // Keyword fallback used when no AI model answers. Checks the Google Books / Open Library
 // subjects first, then the title and description. Order matters: the first rule that matches wins.
-import type { Category } from "./categories.ts";
+import type { Category, ReadingLevel } from "./categories.ts";
 import type { BookInfo } from "./lookup.ts";
 
 const RULES: [Category, RegExp][] = [
@@ -39,4 +39,27 @@ export function categorizeByRules(book: Pick<BookInfo, "sourceCategories" | "tit
     for (const [category, re] of RULES) if (re.test(haystack)) return category;
   }
   return null;
+}
+
+type LevelInput = Pick<BookInfo, "sourceCategories" | "title" | "description" | "pageCount">;
+
+/**
+ * Reading level from subject tags and page count. Library subjects mark children's books
+ * ("Juvenile fiction", "Board books", "Readers (Primary)"); a book with none of those marks is
+ * taken to be for adults.
+ */
+export function readingLevelByRules(book: LevelInput): ReadingLevel {
+  const subjects = book.sourceCategories.join(" | ").toLowerCase();
+  const pages = book.pageCount;
+  if (/\bboard books?\b/.test(subjects)) return "Board Book";
+  if (/\bpicture books?\b|\bstories in rhyme\b|\btoddler\b/.test(subjects)) return "Picture Book";
+  if (/\b(early|beginning|easy) readers?\b|readers \(primary\)|\bi can read\b|\bleveled readers?\b/.test(subjects)) {
+    return "Early Reader";
+  }
+  if (/\b(young adult|teen)\b/.test(subjects)) return "YA";
+  if (/\bjuvenile\b|\bchildren'?s\b/.test(subjects)) {
+    if (pages !== null && pages <= 48) return "Picture Book";
+    return "Chapter Book";
+  }
+  return "Adult";
 }

@@ -1,4 +1,12 @@
-// Edit this list to change the categories. Keep "Other" last: it is the fallback.
+// The three ways a book is classified. Edit the option lists here; the AI only ever picks one
+// of the values listed. Descriptions are shown to the model and help it choose.
+
+export interface Option<V extends string = string> {
+  value: V;
+  description?: string;
+}
+
+// Genre. Keep "Other" last: it is the fallback.
 export const CATEGORIES = [
   "Literary Fiction",
   "Mystery & Thriller",
@@ -27,17 +35,83 @@ export const CATEGORIES = [
   "Education & Reference",
   "Other",
 ] as const;
-
 export type Category = (typeof CATEGORIES)[number];
 
-/** Map a model reply to a category, or null when it names none. */
-export function matchCategory(reply: string | null | undefined): Category | null {
+export const READING_LEVELS = [
+  { value: "Board Book", description: "Thick cardboard pages for babies and toddlers (ages 0–3), very few words." },
+  { value: "Picture Book", description: "Illustrated book read aloud to young children (ages 3–8), usually about 32 pages." },
+  {
+    value: "Early Reader",
+    description: "Leveled or beginning-reader book for children learning to read on their own (ages 5–8).",
+  },
+  {
+    value: "Chapter Book",
+    description: "Mostly text, divided into chapters, for independent readers ages 7–12, including middle grade.",
+  },
+  { value: "YA", description: "Young adult: written for teenagers, ages 12–18." },
+  { value: "Adult", description: "Written for adult readers." },
+] as const satisfies readonly Option[];
+export type ReadingLevel = (typeof READING_LEVELS)[number]["value"];
+
+export const LANGUAGES = [
+  { value: "English", description: "The text is in English." },
+  { value: "Spanish", description: "The text is in Spanish." },
+  { value: "Other", description: "The text is in another language." },
+] as const satisfies readonly Option[];
+export type Language = (typeof LANGUAGES)[number]["value"];
+
+export interface Question {
+  name: "category" | "readingLevel" | "language";
+  instructions: string;
+  options: readonly Option[];
+}
+
+export const QUESTIONS: readonly Question[] = [
+  {
+    name: "category",
+    instructions:
+      "Which category best fits this book? Judge by its genre and subject, not its format or edition. " +
+      "Pick Other only when none of the categories fit.",
+    options: CATEGORIES.map((value) => ({ value })),
+  },
+  {
+    name: "readingLevel",
+    instructions: "Which reading level or type of book is this? Judge by its intended reader's age and its format.",
+    options: READING_LEVELS,
+  },
+  {
+    name: "language",
+    instructions: "What language is the book's text written in?",
+    options: LANGUAGES,
+  },
+];
+
+/** Map a model reply to one of the options, or null when it names none. */
+export function matchOption(reply: string | null | undefined, options: readonly Option[]): string | null {
   if (!reply) return null;
   const text = reply.trim().replace(/^["'*\s]+|["'*.\s]+$/g, "").toLowerCase();
-  const exact = CATEGORIES.find((c) => c.toLowerCase() === text);
+  const values = options.map((o) => o.value);
+  const exact = values.find((v) => v.toLowerCase() === text);
   if (exact) return exact;
-  // Reasoning models sometimes wrap the answer in a sentence; take the longest name mentioned.
-  const mentioned = CATEGORIES.filter((c) => text.includes(c.toLowerCase()));
+  // Reasoning models sometimes wrap the answer in a sentence; take the longest value mentioned.
+  const mentioned = values.filter((v) => new RegExp(`\\b${escape(v.toLowerCase())}\\b`).test(text));
   if (mentioned.length === 0) return null;
   return mentioned.sort((a, b) => b.length - a.length)[0];
+}
+
+/** Genre-only shorthand, kept for callers and tests. */
+export function matchCategory(reply: string | null | undefined): Category | null {
+  return matchOption(reply, QUESTIONS[0].options) as Category | null;
+}
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Map an ISO 639-1/639-2 code ("en", "eng", "spa") to a Language. Null when unknown. */
+export function languageFromCode(code: string | null | undefined): Language | null {
+  if (!code) return null;
+  const c = code.toLowerCase().replace(/^\/languages\//, "").split(/[-_]/)[0];
+  if (c === "en" || c === "eng") return "English";
+  if (c === "es" || c === "spa") return "Spanish";
+  if (c === "und" || c === "mul" || c === "zxx") return null; // undetermined, multiple, no text
+  return "Other";
 }

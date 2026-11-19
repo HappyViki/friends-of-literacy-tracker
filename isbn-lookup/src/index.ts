@@ -5,8 +5,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { Pool } from "pg";
-import { CATEGORIES } from "./categories.ts";
-import { categorize, hasAiProvider } from "./categorize.ts";
+import { CATEGORIES, LANGUAGES, READING_LEVELS } from "./categories.ts";
+import { classify, hasAiProvider, type Classification } from "./categorize.ts";
 import { books, type BookRow } from "./db/schema.ts";
 import { normalizeIsbn } from "./isbn.ts";
 import { lookupBook } from "./lookup.ts";
@@ -32,7 +32,13 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-app.get("/categories", (c) => c.json({ categories: CATEGORIES }));
+app.get("/categories", (c) =>
+  c.json({
+    categories: CATEGORIES,
+    readingLevels: READING_LEVELS.map((o) => o.value),
+    languages: LANGUAGES.map((o) => o.value),
+  }),
+);
 
 app.get("/books/:isbn", async (c) => {
   const isbn = normalizeIsbn(c.req.param("isbn"));
@@ -41,31 +47,19 @@ app.get("/books/:isbn", async (c) => {
 
   const [cached] = await db.select().from(books).where(eq(books.isbn, isbn));
   if (cached && !refresh) {
-    // A book the keyword rules categorized gets another try once an AI model is configured.
-    if (cached.categoryModel === "rules" && hasAiProvider()) {
-      const result = await categorize(toInfo(cached));
-      if (result.model !== "rules") {
-        const [row] = await db
-          .update(books)
-          .set({
-            category: result.category,
-            categoryModel: result.model,
-            categoryConfidence: result.confidence,
-            updatedAt: sql`now()`,
-          })
-          .where(eq(books.isbn, isbn))
-          .returning();
-        return c.json(present(row, false));
-      }
-    }
-    return c.json(present(cached, true));
+    if (!needsClassifying(cached)) return c.json(present(cached, true));
+    const [row] = await db
+      .update(books)
+      .set({ ...classificationColumns(await classify(toInfo(cached))), updatedAt: sql`now()` })
+      .where(eq(books.isbn, isbn))
+      .returning();
+    return c.json(present(row, true));
   }
 
   const info = await lookupBook(isbn, process.env.GOOGLE_BOOKS_API_KEY);
   if (!info) return c.json({ error: "book not found", isbn }, 404);
 
-  const { category, model, confidence } = await categorize(info);
-  const values = { ...info, category, categoryModel: model, categoryConfidence: confidence, updatedAt: sql`now()` };
+  const values = { ...info, ...classificationColumns(await classify(info)), updatedAt: sql`now()` };
   const [row] = await db
     .insert(books)
     .values(values)
@@ -73,6 +67,30 @@ app.get("/books/:isbn", async (c) => {
     .returning();
   return c.json(present(row, false));
 });
+
+/**
+ * A cached row is classified again when it predates the reading-level column, or when an AI
+ * provider is configured and some answer came from rules or is missing.
+ */
+function needsClassifying(row: BookRow): boolean {
+  if (row.readingLevel === null) return true;
+  if (!hasAiProvider()) return false;
+  return row.categoryModel === "rules" || row.readingLevelSource === "rules" || row.language === null;
+}
+
+function classificationColumns(c: Classification) {
+  return {
+    category: c.category.value,
+    categoryModel: c.category.source,
+    categoryConfidence: c.category.confidence,
+    readingLevel: c.readingLevel.value,
+    readingLevelSource: c.readingLevel.source,
+    readingLevelConfidence: c.readingLevel.confidence,
+    language: c.language?.value ?? null,
+    languageSource: c.language?.source ?? null,
+    languageConfidence: c.language?.confidence ?? null,
+  };
+}
 
 app.onError((err, c) => {
   console.error("[books]", err);

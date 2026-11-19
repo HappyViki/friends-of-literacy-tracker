@@ -1,12 +1,16 @@
-// Pick one category for a book. Providers are tried in order, and each is used only when its
-// credentials are set:
-//   1. OpenAI Decisions API (OPENAI_API_KEY): a typed "choice" answer with a confidence score
+// Classify a book three ways: genre category, reading level and language.
+//
+// Language comes from the book's metadata when Google Books or Open Library reports it.
+// Every other answer comes from the first provider that gives a valid one, tried in order,
+// each used only when its credentials are set:
+//   1. OpenAI Decisions API (OPENAI_API_KEY): one request answers every open question,
+//      each with a confidence score
 //   2. OpenCode chat models (OPENCODE_API_KEY)
 //   3. Neon AI Gateway chat models (injected by Neon; needs AI Gateway credits)
-//   4. Keyword rules on the book's subjects
-import { CATEGORIES, matchCategory, type Category } from "./categories.ts";
+//   4. Keyword rules on the book's subjects and page count
+import { languageFromCode, matchOption, QUESTIONS, type Category, type Language, type Question, type ReadingLevel } from "./categories.ts";
 import type { BookInfo } from "./lookup.ts";
-import { categorizeByRules } from "./rules.ts";
+import { categorizeByRules, readingLevelByRules } from "./rules.ts";
 
 // Decisions API: $0.10 per 1M input tokens, output is free. gpt-6-luna is its only model.
 const DECISIONS_URL = "https://api.openai.com/v1/decisions";
@@ -15,26 +19,31 @@ const DEFAULT_DECISIONS_MODEL = "gpt-6-luna";
 // Zen's "-free" models only work inside the OpenCode client; from a backend they return FreeUsageLimitError.
 const DEFAULT_OPENCODE_BASE_URL = "https://opencode.ai/zen/v1";
 const DEFAULT_OPENCODE_MODELS = ["deepseek-v4.1-flash-free", "mimo-v2.6-flash-free", "nemotron-3.5-lightning-free"];
-// Neon AI Gateway catalog IDs, tried in order. Haiku 5.5 costs about $0.00005 per book here.
+// Neon AI Gateway catalog IDs, tried in order.
 const DEFAULT_GATEWAY_MODELS = ["claude-haiku-5-5", "gpt-5-nano"];
 const TIMEOUT_MS = 20_000;
 
-export interface CategoryResult {
-  category: Category;
-  /** e.g. "openai-decisions:gpt-6-luna", or "rules" when no model answered. */
-  model: string;
-  /** 0–1, from the Decisions API only; null for chat models and rules. */
+export interface Answer<V extends string = string> {
+  value: V;
+  /** "openai-decisions:gpt-6-luna", "neon-gateway:…", "metadata" or "rules". */
+  source: string;
+  /** 0–1, from the Decisions API only; null otherwise. */
   confidence: number | null;
 }
 
-interface Answer {
-  reply: string | null;
-  confidence: number | null;
+export interface Classification {
+  category: Answer<Category>;
+  readingLevel: Answer<ReadingLevel>;
+  language: Answer<Language> | null; // null when metadata, AI and rules all have nothing
 }
+
+type Name = Question["name"];
+type Partial = { [K in Name]?: { value: string; confidence: number | null } };
 
 interface Provider {
   label: string;
-  run(book: BookInfo): Promise<Answer>;
+  /** Answer the given questions. Missing keys mean "no valid answer". */
+  run(book: BookInfo, questions: readonly Question[]): Promise<Partial>;
 }
 
 /** The book fields the models see. HTML is stripped and the description is capped to keep input small. */
@@ -43,22 +52,26 @@ export function bookEvidence(book: BookInfo) {
     title: book.subtitle ? `${book.title}: ${book.subtitle}` : book.title,
     authors: book.authors,
     subjects: book.sourceCategories,
+    pageCount: book.pageCount,
+    languageCode: book.languageCode,
     description: book.description?.replace(/<[^>]+>/g, "").slice(0, 1200) ?? null,
   };
 }
 
-export function buildPrompt(book: BookInfo): string {
+export function buildPrompt(book: BookInfo, q: Question): string {
   const e = bookEvidence(book);
   const lines = [
-    `Classify this book into exactly one of these categories:`,
-    CATEGORIES.map((c) => `- ${c}`).join("\n"),
+    q.instructions,
+    `Choose exactly one of:`,
+    q.options.map((o) => `- ${o.value}${o.description ? `: ${o.description}` : ""}`).join("\n"),
     ``,
     `Title: ${e.title}`,
     `Authors: ${e.authors.join(", ") || "unknown"}`,
     e.subjects.length ? `Publisher/library subjects: ${e.subjects.join("; ")}` : null,
+    e.pageCount ? `Pages: ${e.pageCount}` : null,
     e.description ? `Description: ${e.description}` : null,
     ``,
-    `Reply with only the category name, copied exactly from the list.`,
+    `Reply with only the option, copied exactly from the list.`,
   ];
   return lines.filter((l) => l !== null).join("\n");
 }
@@ -77,7 +90,7 @@ async function post(url: string, token: string, body: unknown): Promise<any> {
 function decisionsProvider(apiKey: string, model: string): Provider {
   return {
     label: `openai-decisions:${model}`,
-    async run(book) {
+    async run(book, questions) {
       const data = await post(DECISIONS_URL, apiKey, {
         model,
         input: [
@@ -89,20 +102,21 @@ function decisionsProvider(apiKey: string, model: string): Provider {
             ],
           },
         ],
-        questions: [
-          {
-            type: "choice",
-            name: "category",
-            instructions:
-              "Which category best fits this book? Judge by its genre and subject, not its format or edition. " +
-              "Pick Other only when none of the categories fit.",
-            choices: CATEGORIES.map((value) => ({ value })),
-          },
-        ],
+        questions: questions.map((q) => ({
+          type: "choice",
+          name: q.name,
+          instructions: q.instructions,
+          choices: q.options.map((o) => (o.description ? { value: o.value, description: o.description } : { value: o.value })),
+        })),
       });
-      const answer = data.answers?.[0];
-      if (answer?.type !== "choice") return { reply: null, confidence: null }; // refusal
-      return { reply: String(answer.choice), confidence: answer.confidence ?? null };
+      const out: Partial = {};
+      for (const a of data.answers ?? []) {
+        const q = questions.find((x) => x.name === a.name);
+        if (!q || a.type !== "choice") continue; // a refusal leaves the question open
+        const value = matchOption(String(a.choice), q.options);
+        if (value) out[q.name] = { value, confidence: a.confidence ?? null };
+      }
+      return out;
     },
   };
 }
@@ -110,15 +124,20 @@ function decisionsProvider(apiKey: string, model: string): Provider {
 function chatProvider(label: string, url: string, token: string, model: string): Provider {
   return {
     label,
-    async run(book) {
-      const data = await post(url, token, {
-        model,
-        // Room for reasoning models to think before answering; the answer itself is a few tokens.
-        max_tokens: 1024,
-        temperature: 0,
-        messages: [{ role: "user", content: buildPrompt(book) }],
-      });
-      return { reply: data.choices?.[0]?.message?.content ?? null, confidence: null };
+    async run(book, questions) {
+      const out: Partial = {};
+      for (const q of questions) {
+        const data = await post(url, token, {
+          model,
+          // Room for reasoning models to think before answering; the answer itself is a few tokens.
+          max_tokens: 1024,
+          temperature: 0,
+          messages: [{ role: "user", content: buildPrompt(book, q) }],
+        });
+        const value = matchOption(data.choices?.[0]?.message?.content, q.options);
+        if (value) out[q.name] = { value, confidence: null };
+      }
+      return out;
     },
   };
 }
@@ -146,18 +165,41 @@ function providers(env: NodeJS.ProcessEnv): Provider[] {
   return out;
 }
 
-export async function categorize(book: BookInfo, env: NodeJS.ProcessEnv = process.env): Promise<CategoryResult> {
+export async function classify(book: BookInfo, env: NodeJS.ProcessEnv = process.env): Promise<Classification> {
+  const answers: { [K in Name]?: Answer } = {};
+
+  const fromMetadata = languageFromCode(book.languageCode);
+  if (fromMetadata) answers.language = { value: fromMetadata, source: "metadata", confidence: null };
+
   for (const p of providers(env)) {
+    const open = QUESTIONS.filter((q) => !answers[q.name]);
+    if (open.length === 0) break;
     try {
-      const { reply, confidence } = await p.run(book);
-      const category = matchCategory(reply);
-      if (category) return { category, model: p.label, confidence };
-      console.warn(`[categorize] ${p.label} gave no known category`);
+      const got = await p.run(book, open);
+      for (const q of open) {
+        const a = got[q.name];
+        if (a) answers[q.name] = { ...a, source: p.label };
+      }
+      const missed = open.filter((q) => !got[q.name]).map((q) => q.name);
+      if (missed.length) console.warn(`[classify] ${p.label} gave no valid answer for: ${missed.join(", ")}`);
     } catch (err) {
-      console.warn(`[categorize] ${p.label} failed:`, (err as Error).message);
+      console.warn(`[classify] ${p.label} failed:`, (err as Error).message);
     }
   }
-  return { category: categorizeByRules(book) ?? "Other", model: "rules", confidence: null };
+
+  return {
+    category: (answers.category as Answer<Category>) ?? {
+      value: categorizeByRules(book) ?? "Other",
+      source: "rules",
+      confidence: null,
+    },
+    readingLevel: (answers.readingLevel as Answer<ReadingLevel>) ?? {
+      value: readingLevelByRules(book),
+      source: "rules",
+      confidence: null,
+    },
+    language: (answers.language as Answer<Language>) ?? null,
+  };
 }
 
 export function hasAiProvider(env: NodeJS.ProcessEnv = process.env): boolean {

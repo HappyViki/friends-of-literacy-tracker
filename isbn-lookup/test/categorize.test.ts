@@ -1,71 +1,97 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { categorize } from "../src/categorize.ts";
+import { classify } from "../src/categorize.ts";
 import type { BookInfo } from "../src/lookup.ts";
 
 const book: BookInfo = {
   isbn: "9780441172719", title: "Dune", subtitle: null, authors: ["Frank Herbert"], publisher: null,
-  publishedDate: null, pageCount: null, description: "Desert planet.", coverUrl: null,
-  sourceCategories: ["Fiction"], source: "google", raw: {},
+  publishedDate: null, pageCount: 600, description: "Desert planet.", coverUrl: null,
+  sourceCategories: ["Fiction"], languageCode: null, source: "google", raw: {},
 };
 const realFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = realFetch; });
 
-function reply(content: string, status = 200) {
-  return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status });
-}
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+const chat = (content: string) => json({ choices: [{ message: { content } }] });
+const choice = (name: string, value: string, confidence: number) => ({ type: "choice", name, choice: value, confidence });
 
-test("falls through failing models to the gateway", async () => {
-  const calls: string[] = [];
+test("one Decisions request answers all three questions", async () => {
+  let body: any;
+  let calls = 0;
   globalThis.fetch = (async (url: string, init: RequestInit) => {
+    calls++;
+    assert.equal(url, "https://api.openai.com/v1/decisions");
+    body = JSON.parse(init.body as string);
+    return json({ answers: [
+      choice("category", "Science Fiction", 0.9),
+      choice("readingLevel", "Adult", 0.8),
+      choice("language", "English", 0.99),
+    ] });
+  }) as typeof fetch;
+  const c = await classify(book, { OPENAI_API_KEY: "sk" });
+  assert.equal(calls, 1);
+  assert.deepEqual(body.questions.map((q: any) => q.name), ["category", "readingLevel", "language"]);
+  assert.ok(body.questions[1].choices.find((x: any) => x.value === "Board Book").description);
+  assert.equal(body.input[0].content[1].data.title, "Dune");
+  assert.deepEqual(c, {
+    category: { value: "Science Fiction", source: "openai-decisions:gpt-6-luna", confidence: 0.9 },
+    readingLevel: { value: "Adult", source: "openai-decisions:gpt-6-luna", confidence: 0.8 },
+    language: { value: "English", source: "openai-decisions:gpt-6-luna", confidence: 0.99 },
+  });
+});
+
+test("language from metadata is not asked of the AI", async () => {
+  let asked: string[] = [];
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    asked = JSON.parse(init.body as string).questions.map((q: any) => q.name);
+    return json({ answers: [choice("category", "Fantasy", 0.7), choice("readingLevel", "Chapter Book", 0.6)] });
+  }) as typeof fetch;
+  const c = await classify({ ...book, languageCode: "spa" }, { OPENAI_API_KEY: "sk" });
+  assert.deepEqual(asked, ["category", "readingLevel"]);
+  assert.deepEqual(c.language, { value: "Spanish", source: "metadata", confidence: null });
+});
+
+test("a refused question falls through to the next provider; answered ones are kept", async () => {
+  const chatAsked: string[] = [];
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    if (url.includes("/decisions")) {
+      return json({ answers: [
+        choice("category", "Science Fiction", 0.9),
+        { type: "refusal", name: "readingLevel" },
+        choice("language", "English", 0.95),
+      ] });
+    }
+    const prompt: string = JSON.parse(init.body as string).messages[0].content;
+    chatAsked.push(prompt.split("\n")[0]);
+    return chat("YA");
+  }) as typeof fetch;
+  const c = await classify(book, { OPENAI_API_KEY: "sk", NEON_AI_GATEWAY_TOKEN: "t", NEON_AI_GATEWAY_BASE_URL: "https://gw", GATEWAY_MODELS: "g" });
+  assert.equal(chatAsked.length, 1);
+  assert.match(chatAsked[0], /reading level/);
+  assert.equal(c.category.source, "openai-decisions:gpt-6-luna");
+  assert.deepEqual(c.readingLevel, { value: "YA", source: "neon-gateway:g", confidence: null });
+});
+
+test("failing chat models fall through in order", async () => {
+  const calls: string[] = [];
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
     const model = JSON.parse(init.body as string).model;
     calls.push(model);
     if (model === "a") return new Response("rate limited", { status: 429 });
-    if (model === "b") return reply("Space opera");
-    return reply("Science Fiction");
+    return chat(calls.length === 2 ? "Science Fiction" : calls.length === 3 ? "Adult" : "English");
   }) as typeof fetch;
-  const result = await categorize(book, {
-    OPENCODE_API_KEY: "k", OPENCODE_MODELS: "a,b",
-    NEON_AI_GATEWAY_TOKEN: "t", NEON_AI_GATEWAY_BASE_URL: "https://gw", GATEWAY_MODELS: "g",
-  });
-  assert.deepEqual(calls, ["a", "b", "g"]);
-  assert.deepEqual(result, { category: "Science Fiction", model: "neon-gateway:g", confidence: null });
+  const c = await classify(book, { OPENCODE_API_KEY: "k", OPENCODE_MODELS: "a,b" });
+  assert.deepEqual(calls, ["a", "b", "b", "b"]);
+  assert.equal(c.category.value, "Science Fiction");
+  assert.equal(c.readingLevel.value, "Adult");
+  assert.equal(c.language?.value, "English");
 });
 
-test("returns Other with no model when nothing answers", async () => {
+test("with no AI, rules answer category and reading level; language stays null", async () => {
   globalThis.fetch = (async () => new Response("down", { status: 500 })) as unknown as typeof fetch;
-  const bare = { ...book, sourceCategories: [], description: null };
-  assert.deepEqual(await categorize(bare, { OPENCODE_API_KEY: "k", OPENCODE_MODELS: "a" }), {
-    category: "Other", model: "rules", confidence: null,
-  });
-});
-
-test("keyword rules categorize when no model answers", async () => {
-  globalThis.fetch = (async () => new Response("down", { status: 500 })) as unknown as typeof fetch;
-  const scifi = { ...book, sourceCategories: ["Fiction / Science Fiction / Space Opera"] };
-  assert.deepEqual(await categorize(scifi, {}), { category: "Science Fiction", model: "rules", confidence: null });
-});
-
-test("Decisions API answers first, with confidence", async () => {
-  let body: any;
-  globalThis.fetch = (async (url: string, init: RequestInit) => {
-    assert.equal(url, "https://api.openai.com/v1/decisions");
-    body = JSON.parse(init.body as string);
-    return new Response(JSON.stringify({ answers: [{ type: "choice", name: "category", choice: "Science Fiction", confidence: 0.91 }] }));
-  }) as typeof fetch;
-  const result = await categorize(book, { OPENAI_API_KEY: "sk", NEON_AI_GATEWAY_TOKEN: "t", NEON_AI_GATEWAY_BASE_URL: "https://gw" });
-  assert.deepEqual(result, { category: "Science Fiction", model: "openai-decisions:gpt-6-luna", confidence: 0.91 });
-  assert.equal(body.model, "gpt-6-luna");
-  assert.equal(body.questions[0].type, "choice");
-  assert.ok(body.questions[0].choices.some((c: { value: string }) => c.value === "Other"));
-  assert.equal(body.input[0].content[1].data.title, "Dune");
-});
-
-test("a Decisions refusal falls through to the next provider", async () => {
-  globalThis.fetch = (async (url: string) =>
-    url.includes("/decisions")
-      ? new Response(JSON.stringify({ answers: [{ type: "refusal", name: "category" }] }))
-      : reply("Fantasy")) as typeof fetch;
-  const result = await categorize(book, { OPENAI_API_KEY: "sk", NEON_AI_GATEWAY_TOKEN: "t", NEON_AI_GATEWAY_BASE_URL: "https://gw", GATEWAY_MODELS: "g" });
-  assert.deepEqual(result, { category: "Fantasy", model: "neon-gateway:g", confidence: null });
+  const kids = { ...book, title: "Goodnight Moon", sourceCategories: ["Juvenile fiction", "Bedtime"], pageCount: 32, description: null };
+  const c = await classify(kids, { OPENAI_API_KEY: "sk" });
+  assert.deepEqual(c.readingLevel, { value: "Picture Book", source: "rules", confidence: null });
+  assert.equal(c.category.source, "rules");
+  assert.equal(c.language, null);
 });
