@@ -89,7 +89,6 @@ function chatProvider(label: string, url: string, token: string, model: string):
           model,
           // Room for reasoning models to think before answering; the answer itself is a few tokens.
           max_tokens: 1024,
-          temperature: 0,
           messages: [{ role: "user", content: buildPrompt(book, q) }],
         });
         const value = matchOption(data.choices?.[0]?.message?.content, q.options);
