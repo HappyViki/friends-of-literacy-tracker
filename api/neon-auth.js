@@ -4,14 +4,16 @@
 // so sign-in works in browsers that block third-party cookies.
 // Node.js runtime: Neon Auth rejects requests carrying an x-forwarded-host header (INVALID_HOSTNAME), so
 // the proxy sends a plain request with only the headers below.
-// The build replaces __NEON_AUTH_BASE_URL__ with the branch's Neon Auth URL.
+// vercel.json routes /neon-auth/* here. NEON_AUTH_BASE_URL (the production branch's Neon Auth URL)
+// is a Vercel environment variable, read at request time, so Git deploys and CLI deploys both work.
 
-const BASE = "__NEON_AUTH_BASE_URL__";
 const REQUEST_HEADERS = ["user-agent", "authorization", "referer", "content-type", "x-neon-client-info"];
 const RESPONSE_HEADERS = ["content-type", "content-encoding", "date", "set-auth-jwt", "set-auth-token", "x-neon-ret-request-id", "location"];
 const COOKIE_PREFIX = "__Secure-neon-auth";
 
 async function handler(request) {
+  const BASE = (process.env.NEON_AUTH_BASE_URL ?? "").replace(/\/+$/, "");
+  if (!BASE) return new Response("NEON_AUTH_BASE_URL is not set on this deployment", { status: 500 });
   const url = new URL(request.url);
   const path = (url.searchParams.get("path") ?? "").replace(/^\/+/, "");
   if (!/^[A-Za-z0-9._\-\/]*$/.test(path) || path.includes("..")) return new Response("Bad path", { status: 400 });
