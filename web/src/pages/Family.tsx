@@ -84,7 +84,7 @@ export function FamilyPage({ householdId }: { householdId: string }) {
                 <li key={c.id} className="person">
                   <b>{c.firstName}</b>
                   <span className="muted small">
-                    {c.age != null ? `${c.birthYearEstimated ? "about " : ""}${c.age} yrs` : "age unknown"}
+                    {c.age != null ? `${c.birthYearEstimated ? "about " : ""}${c.age} ${c.age === 1 ? "yr" : "yrs"}` : "age unknown"}
                     {c.ageBracket && ` · ages ${c.ageBracket}`}
                     {c.birthYear && ` · born ${c.birthMonth ? MONTHS[c.birthMonth - 1] + " " : ""}${c.birthYear}${c.birthYearEstimated ? " (est.)" : ""}`}
                     {` · ${plural(n, "book")}`}

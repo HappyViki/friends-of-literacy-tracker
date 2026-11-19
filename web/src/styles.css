@@ -239,6 +239,8 @@ a:focus-visible {
 }
 .submit {
   width: 100%;
+  white-space: normal;
+  text-align: center;
   background: #9b75ae;
   color: white;
   font-size: 17px;
@@ -248,6 +250,8 @@ a:focus-visible {
 
 .segmented {
   display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   background: var(--purple-soft);
   border-radius: 12px;
   padding: 3px;
@@ -258,6 +262,7 @@ a:focus-visible {
   flex-wrap: wrap;
 }
 .segmented button {
+  white-space: normal;
   background: transparent;
   color: #6f4686;
   font-weight: normal;
@@ -941,6 +946,8 @@ dd {
 /* ---------- tables */
 .table-scroll {
   overflow-x: auto;
+  /* Contain absolutely positioned children (e.g. .sr-only headers) so they don't widen the page. */
+  position: relative;
 }
 .table {
   width: 100%;

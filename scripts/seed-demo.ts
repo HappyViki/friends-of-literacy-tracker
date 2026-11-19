@@ -166,11 +166,12 @@ async function reset() {
     // What staff did with demo families or at demo locations. Giveaway stock rows and items cascade
     // from distributions.
     const DH = `(select id from households where created_by = $2 or home_location_id in ${DL})`;
-    await del("staff giveaways", `delete from distributions where household_id in ${DH} or location_id in ${DL}`, [DEMO_CODES, BY]);
-    await del("staff stock changes", `delete from stock_movements where location_id in ${DL}`, [DEMO_CODES]);
-    await del("staff survey responses", `delete from survey_responses where household_id in ${DH} or location_id in ${DL}`, [DEMO_CODES, BY]);
-    await del("staff library cards", `delete from library_cards where household_id in ${DH} or issued_location_id in ${DL}`, [DEMO_CODES, BY]);
-    await del("staff households", `delete from households where home_location_id in ${DL}`, [DEMO_CODES]);
+    const notDemo = (col: string) => `${col} <> $2`;
+    await del("staff giveaways", `delete from distributions where ${notDemo("created_by")} and (household_id in ${DH} or location_id in ${DL})`, [DEMO_CODES, BY]);
+    await del("staff stock changes", `delete from stock_movements where ${notDemo("created_by")} and location_id in ${DL}`, [DEMO_CODES, BY]);
+    await del("staff survey responses", `delete from survey_responses where ${notDemo("created_by")} and (household_id in ${DH} or location_id in ${DL})`, [DEMO_CODES, BY]);
+    await del("staff library cards", `delete from library_cards where ${notDemo("issued_by")} and (household_id in ${DH} or issued_location_id in ${DL})`, [DEMO_CODES, BY]);
+    await del("staff households", `delete from households where ${notDemo("created_by")} and home_location_id in ${DL}`, [DEMO_CODES, BY]);
   }
   // Foreign-key order. Survey answers cascade from responses; guardians, children and household
   // languages cascade from households.
@@ -378,6 +379,8 @@ async function seed() {
     }
   }
 
+  // Card numbers come from one sequence, so issue them in sign-up order.
+  families.sort((a, b) => a.signedUp - b.signedUp);
   await insertMany(
     "households (id, zip_code, home_location_id, created_by, created_at)",
     families.map((f) => [f.id, pick(ZIPS[f.home]), locId[f.home], BY, new Date(f.signedUp)]),

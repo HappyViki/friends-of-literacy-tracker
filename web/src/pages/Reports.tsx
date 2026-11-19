@@ -15,9 +15,10 @@ const PRESETS: { key: string; label: string; range: () => [string, string] }[] =
   { key: "30d", label: "Last 30 days", range: () => { const f = today(); f.setDate(f.getDate() - 29); return [iso(f), iso(today())]; } },
 ];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const monthLabel = (m: string) => {
+/** "Mar", or "Jan ’26" for January and for the first month shown (so a range starting mid-year is dated). */
+const monthLabel = (m: string, first = false) => {
   const [y, mo] = m.split("-").map(Number);
-  return `${MONTHS[mo - 1]}${mo === 1 ? ` ’${String(y).slice(2)}` : ""}`;
+  return `${MONTHS[mo - 1]}${mo === 1 || first ? ` ’${String(y).slice(2)}` : ""}`;
 };
 const BOOKS_IN_HOME_ORDER = ["0", "1-10", "11-25", "26-50", "51-100", "100+"];
 const BOOKS_IN_HOME_LABEL: Record<string, string> = { "0": "None", "100+": "More than 100" };
@@ -128,7 +129,7 @@ function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
         subtitle="Hover a month for families served"
         table={<DataTable head={["Month", "Books", "Families"]} rows={b.byMonth.map((m) => [m.month, m.books, m.families])} />}
       >
-        <ColumnChart data={b.byMonth.map((m) => ({ x: m.month, y: m.books }))} label={monthLabel} unit="books" secondary={{ name: "families", values: b.byMonth.map((m) => m.families) }} />
+        <ColumnChart data={b.byMonth.map((m) => ({ x: m.month, y: m.books }))} label={(m) => monthLabel(m, m === b.byMonth[0]?.month)} unit="books" secondary={{ name: "families", values: b.byMonth.map((m) => m.families) }} />
       </ChartCard>
 
       <div className="two-col">
