@@ -3,33 +3,23 @@
 // Language: when the metadata lists two languages the book is Bilingual. Otherwise the AI
 // decides (it sees the language codes, and can spot bilingual titles that metadata misses);
 // without AI, a single metadata code decides, then a keyword rule for "bilingual".
-// Every AI answer comes from the first provider that gives a valid one, tried in order, each
-// used only when its credentials are set:
-//   1. OpenAI Decisions API (OPENAI_API_KEY): one request answers every open question,
-//      each with a confidence score
-//   2. OpenCode chat models (OPENCODE_API_KEY)
-//   3. Neon AI Gateway chat models (injected by Neon; needs AI Gateway credits)
-//   4. Keyword rules on the book's subjects and page count
+// AI answers come from the Neon AI Gateway (NEON_AI_GATEWAY_* is injected by Neon; calls need
+// AI Gateway credits). Its models are tried in order (GATEWAY_MODELS), and each question goes
+// to the next model only if the previous one gave no valid answer. Anything still open is
+// answered by keyword rules on the book's subjects and page count.
 import { languageFromCode, matchOption, QUESTIONS, type Category, type Language, type Question, type ReadingLevel } from "./categories.ts";
 import type { BookInfo } from "./lookup.ts";
 import { categorizeByRules, languageByRules, readingLevelByRules } from "./rules.ts";
 
-// Decisions API: $0.10 per 1M input tokens, output is free. gpt-6-luna is its only model.
-const DECISIONS_URL = "https://api.openai.com/v1/decisions";
-const DEFAULT_DECISIONS_MODEL = "gpt-6-luna";
-// OpenCode Zen (pay as you go). For an OpenCode Go plan use https://opencode.ai/inference/go/v1.
-// Zen's "-free" models only work inside the OpenCode client; from a backend they return FreeUsageLimitError.
-const DEFAULT_OPENCODE_BASE_URL = "https://opencode.ai/zen/v1";
-const DEFAULT_OPENCODE_MODELS = ["deepseek-v4.1-flash-free", "mimo-v2.6-flash-free", "nemotron-3.5-lightning-free"];
-// Neon AI Gateway catalog IDs, tried in order.
-const DEFAULT_GATEWAY_MODELS = ["claude-haiku-5-5", "gpt-5-nano"];
+// Neon AI Gateway catalog IDs, tried in order (see GET $NEON_AI_GATEWAY_BASE_URL/v1/models).
+const DEFAULT_GATEWAY_MODELS = ["gpt-6-luna", "claude-haiku-5-5", "gpt-5-nano"];
 const TIMEOUT_MS = 20_000;
 
 export interface Answer<V extends string = string> {
   value: V;
-  /** "openai-decisions:gpt-6-luna", "neon-gateway:…", "metadata" or "rules". */
+  /** "neon-gateway:<model>", "metadata" or "rules". */
   source: string;
-  /** 0–1, from the Decisions API only; null otherwise. */
+  /** Kept for stored books classified earlier by the OpenAI Decisions API; null now. */
   confidence: number | null;
 }
 
@@ -89,40 +79,6 @@ async function post(url: string, token: string, body: unknown): Promise<any> {
   return res.json();
 }
 
-function decisionsProvider(apiKey: string, model: string): Provider {
-  return {
-    label: `openai-decisions:${model}`,
-    async run(book, questions) {
-      const data = await post(DECISIONS_URL, apiKey, {
-        model,
-        input: [
-          {
-            role: "user",
-            content: [
-              { type: "input_text", text: "Book metadata from Google Books and Open Library:" },
-              { type: "input_json", data: bookEvidence(book) },
-            ],
-          },
-        ],
-        questions: questions.map((q) => ({
-          type: "choice",
-          name: q.name,
-          instructions: q.instructions,
-          choices: q.options.map((o) => (o.description ? { value: o.value, description: o.description } : { value: o.value })),
-        })),
-      });
-      const out: Partial = {};
-      for (const a of data.answers ?? []) {
-        const q = questions.find((x) => x.name === a.name);
-        if (!q || a.type !== "choice") continue; // a refusal leaves the question open
-        const value = matchOption(String(a.choice), q.options);
-        if (value) out[q.name] = { value, confidence: a.confidence ?? null };
-      }
-      return out;
-    },
-  };
-}
-
 function chatProvider(label: string, url: string, token: string, model: string): Provider {
   return {
     label,
@@ -149,15 +105,6 @@ const list = (value: string | undefined, fallback: string[]) =>
 
 function providers(env: NodeJS.ProcessEnv): Provider[] {
   const out: Provider[] = [];
-  if (env.OPENAI_API_KEY) {
-    out.push(decisionsProvider(env.OPENAI_API_KEY, env.DECISIONS_MODEL || DEFAULT_DECISIONS_MODEL));
-  }
-  if (env.OPENCODE_API_KEY) {
-    const base = (env.OPENCODE_BASE_URL || DEFAULT_OPENCODE_BASE_URL).replace(/\/+$/, "");
-    for (const model of list(env.OPENCODE_MODELS, DEFAULT_OPENCODE_MODELS)) {
-      out.push(chatProvider(`opencode:${model}`, `${base}/chat/completions`, env.OPENCODE_API_KEY, model));
-    }
-  }
   if (env.NEON_AI_GATEWAY_TOKEN && env.NEON_AI_GATEWAY_BASE_URL) {
     const url = `${env.NEON_AI_GATEWAY_BASE_URL}/v1/chat/completions`;
     for (const model of list(env.GATEWAY_MODELS, DEFAULT_GATEWAY_MODELS)) {
