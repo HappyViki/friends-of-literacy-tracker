@@ -10,7 +10,8 @@ const AUTH_PATH = "/neon-auth";
 
 /**
  * Adds the Vercel pieces to dist/web: a Node.js Function (web/vercel/neon-auth.js) that proxies
- * /neon-auth to this branch's Neon Auth, and the vercel.json rewrite that routes to it. A plain
+ * /neon-auth to this branch's Neon Auth, and vercel.json (the rewrite that routes to it, plus cache
+ * headers so a deploy never serves a stale index.html). A plain
  * external rewrite doesn't work: Neon Auth rejects the forwarded host header.
  */
 function vercelAuthProxy(authUrl: string): Plugin {
@@ -23,7 +24,20 @@ function vercelAuthProxy(authUrl: string): Plugin {
       this.emitFile({
         type: "asset",
         fileName: "vercel.json",
-        source: JSON.stringify({ rewrites: [{ source: `${AUTH_PATH}/:path*`, destination: "/api/neon-auth?path=:path*" }] }, null, 2),
+        source: JSON.stringify(
+          {
+            rewrites: [{ source: `${AUTH_PATH}/:path*`, destination: "/api/neon-auth?path=:path*" }],
+            // index.html must never be served from cache: an old copy points at deleted
+            // hashed assets and the page loads blank. Hashed assets can be cached forever.
+            headers: [
+              { source: "/", headers: [{ key: "Cache-Control", value: "no-cache, must-revalidate" }] },
+              { source: "/index.html", headers: [{ key: "Cache-Control", value: "no-cache, must-revalidate" }] },
+              { source: "/assets/(.*)", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
+            ],
+          },
+          null,
+          2,
+        ),
       });
     },
   };
