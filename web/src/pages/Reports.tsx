@@ -94,6 +94,22 @@ function Kpi({ value, label, note }: { value: string | number; label: string; no
 
 function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
   const b = r.booksGivenAway;
+  // Closed locations (and old test ones) are grouped into one row so the chart stays readable.
+  const { locations } = useApp();
+  const activeCodes = new Set(locations.filter((l) => l.active).map((l) => l.code));
+  const openLocs = b.byLocation.filter((l) => activeCodes.has(l.location));
+  const closed = b.byLocation.filter((l) => !activeCodes.has(l.location));
+  const byLocation = closed.length
+    ? [
+        ...openLocs,
+        {
+          location: "closed",
+          name: `Closed locations (${closed.length})`,
+          books: closed.reduce((n, l) => n + l.books, 0),
+          families: closed.reduce((n, l) => n + l.families, 0),
+        },
+      ]
+    : openLocs;
   const newFams = r.families.served - r.families.returning;
   const rd = r.surveys.readDaysPerWeek;
   const ch = rd.changeForReturningFamilies;
@@ -111,11 +127,13 @@ function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
       : "Needs families with 2+ answers";
   const stockByLoc = new Map<string, { new: number; used: number; titles: number }>();
   for (const s of r.stockOnHand) {
-    const v = stockByLoc.get(s.location) ?? { new: 0, used: 0, titles: 0 };
+    const key = activeCodes.has(s.location) ? s.location : "Closed locations";
+    const v = stockByLoc.get(key) ?? { new: 0, used: 0, titles: 0 };
     v[s.condition as "new" | "used"] += s.on_hand;
     v.titles += s.titles;
-    stockByLoc.set(s.location, v);
+    stockByLoc.set(key, v);
   }
+  const stockRows = [...stockByLoc].sort(([a], [b]) => Number(a === "Closed locations") - Number(b === "Closed locations"));
   const perVisit = b.visits ? (b.books / b.visits).toFixed(1) : "—";
   const levels = [...b.byReadingLevel].sort((x, y) => byOrder(LEVEL_ORDER)(x.reading_level, y.reading_level));
   const bookLangs = [...b.byBookLanguage].sort((x, y) => byOrder(LANG_ORDER)(x.language, y.language));
@@ -155,7 +173,7 @@ function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
           <BarList data={bookLangs.map((l) => ({ label: l.language, value: l.books }))} unit="books" />
         </ChartCard>
         <ChartCard title="Books by location" table={<DataTable head={["Location", "Books", "Families"]} rows={b.byLocation.map((l) => [`${l.name} (${l.location})`, l.books, l.families])} />}>
-          <BarList data={b.byLocation.map((l) => ({ label: l.name, value: l.books, note: `· ${l.families} fam.` }))} unit="books" />
+          <BarList data={byLocation.map((l) => ({ label: l.name, value: l.books, note: `· ${l.families} fam.` }))} unit="books" />
         </ChartCard>
         <ChartCard title="Families by home language" subtitle="A family can speak more than one" table={<DataTable head={["Language", "Families", "Books"]} rows={b.byHomeLanguage.map((l) => [l.language, l.families, l.books])} />}>
           <BarList data={[...b.byHomeLanguage].sort((x, y) => y.families - x.families).map((l) => ({ label: l.language, value: l.families }))} unit="families" />
@@ -166,9 +184,9 @@ function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
         <ChartCard
           title="Stock on hand"
           subtitle="Right now, not limited to the date range"
-          table={<DataTable head={["Location", "New", "Used", "Titles"]} rows={[...stockByLoc].map(([k, v]) => [k, v.new, v.used, v.titles])} />}
+          table={<DataTable head={["Location", "New", "Used", "Titles"]} rows={stockRows.map(([k, v]) => [k, v.new, v.used, v.titles])} />}
         >
-          <BarList data={[...stockByLoc].map(([k, v]) => ({ label: k, value: v.new + v.used, note: `· ${v.new} new / ${v.used} used` }))} unit="copies" />
+          <BarList data={stockRows.map(([k, v]) => ({ label: k, value: v.new + v.used, note: `· ${v.new} new / ${v.used} used` }))} unit="copies" />
         </ChartCard>
       </div>
 

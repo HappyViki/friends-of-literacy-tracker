@@ -113,7 +113,7 @@ function SurveyForm({ family, survey }: { family: Family; survey: Survey }) {
       </header>
       <section className="card" lang={lang}>
         {family.guardians.length > 1 && (
-          <>
+          <div className="survey-who">
             <label htmlFor="who">{UI[lang].who}</label>
             <select id="who" value={guardianId} onChange={(e) => setGuardianId(e.target.value)}>
               {family.guardians.map((g) => (
@@ -122,7 +122,7 @@ function SurveyForm({ family, survey }: { family: Family; survey: Survey }) {
                 </option>
               ))}
             </select>
-          </>
+          </div>
         )}
         {visible.map((q, i) => (
           <QuestionField key={q.key} n={i + 1} q={q} lang={lang} value={answers[q.key]} onChange={(v) => set(q.key, v)} />
