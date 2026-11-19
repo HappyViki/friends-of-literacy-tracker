@@ -1387,3 +1387,7 @@ dd {
 .google.block {
   width: 100%;
 }
+
+.link.danger {
+  color: #b42318;
+}

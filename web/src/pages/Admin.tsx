@@ -1,4 +1,4 @@
-// Admins: data export for Excel/Sheets, families missing surveys, contact export, locations, the staff list, and a read-only view of the surveys.
+// Admins: data export for Excel/Sheets, families missing surveys, contact export, locations, staff accounts, and a read-only view of the surveys.
 import { useState, type FormEvent } from "react";
 import { api } from "../auth";
 import { useApp } from "../context";
@@ -7,6 +7,7 @@ import { ErrorBox, Loading, Notice, fmtDate, toApiError, useAsync } from "../ui"
 import { SurveyCoverage } from "./SurveyCoverage";
 import { ExportContacts } from "./ExportContacts";
 import { DataExport } from "./DataExport";
+import { StaffAccounts } from "./StaffAccounts";
 
 export function Admin() {
   const { me } = useApp();
@@ -20,7 +21,7 @@ export function Admin() {
       <SurveyCoverage />
       <ExportContacts />
       <Locations />
-      <Staff />
+      <StaffAccounts />
       <Surveys />
     </div>
   );
@@ -131,103 +132,6 @@ function Locations() {
           {busy ? "Adding…" : "Add location"}
         </button>
       </form>
-    </section>
-  );
-}
-
-function Staff() {
-  const { me } = useApp();
-  const staff = useAsync(() => api<StaffMember[]>("/api/staff"), []);
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"staff" | "admin">("staff");
-  const [error, setError] = useState<Error | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [showInactive, setShowInactive] = useState(false);
-
-  async function save(body: { email: string; role: "staff" | "admin"; active: boolean }) {
-    setBusy(true);
-    setError(null);
-    try {
-      await api("/api/staff", { json: body });
-      staff.reload();
-      return true;
-    } catch (err) {
-      setError(toApiError(err));
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const rows = (staff.data ?? []).filter((s) => showInactive || s.active);
-  return (
-    <section className="card">
-      <div className="row spread wrap">
-        <h2>👥 Staff</h2>
-        <label className="check">
-          <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> Show deactivated
-        </label>
-      </div>
-      <form
-        className="row wrap"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (await save({ email, role, active: true })) setEmail("");
-        }}
-      >
-        <input type="email" aria-label="Email to add" placeholder="volunteer@example.org" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <select aria-label="Role" value={role} onChange={(e) => setRole(e.target.value as "staff" | "admin")}>
-          <option value="staff">Staff</option>
-          <option value="admin">Admin</option>
-        </select>
-        <button className="primary" disabled={busy}>
-          Add to staff list
-        </button>
-      </form>
-      <p className="hint">They create an account with this email and verify it with the emailed code.</p>
-      <ErrorBox error={error} />
-      {staff.loading && !staff.data ? (
-        <Loading />
-      ) : staff.error ? (
-        <ErrorBox error={staff.error} onRetry={staff.reload} />
-      ) : (
-        <div className="table-scroll">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Added</th>
-                <th>
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((s) => (
-                <tr key={s.email} className={s.active ? "" : "inactive"}>
-                  <td>{s.email}</td>
-                  <td>{s.role}</td>
-                  <td>{fmtDate(s.createdAt)}</td>
-                  <td className="row-actions">
-                    {s.email !== me.email && (
-                      <>
-                        <button className="link" disabled={busy} onClick={() => save({ email: s.email, role: s.role === "admin" ? "staff" : "admin", active: s.active })}>
-                          Make {s.role === "admin" ? "staff" : "admin"}
-                        </button>
-                        <button className="link" disabled={busy} onClick={() => save({ email: s.email, role: s.role, active: !s.active })}>
-                          {s.active ? "Deactivate" : "Reactivate"}
-                        </button>
-                      </>
-                    )}
-                    {s.email === me.email && <span className="muted small">you</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </section>
   );
 }
