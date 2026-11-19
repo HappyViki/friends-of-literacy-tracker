@@ -3,7 +3,7 @@ import { useState } from "react";
 import { api } from "../auth";
 import type { ApiError } from "../auth";
 import type { SearchResult } from "../types";
-import { ErrorBox, Notice, ScanField, fmtPhone, fullName, go, plural, toApiError } from "../ui";
+import { ErrorBox, Notice, PagerBar, ScanField, fmtPhone, fullName, go, plural, toApiError, usePager } from "../ui";
 
 const MATCHED: Record<SearchResult["matchedBy"], string> = {
   card: "card number",
@@ -17,6 +17,7 @@ export function FrontDesk() {
   const [result, setResult] = useState<SearchResult | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
+  const pager = usePager(result?.results ?? [], { resetKey: query });
 
   async function search(q: string) {
     setBusy(true);
@@ -74,8 +75,9 @@ export function FrontDesk() {
               </a>
             </div>
           ) : (
+            <>
             <ul className="results">
-              {result.results.map((f) => (
+              {pager.rows.map((f) => (
                 <li key={f.householdId}>
                   <a className="result" href={`#/family/${f.householdId}`}>
                     <div className="result-main">
@@ -99,6 +101,8 @@ export function FrontDesk() {
                 </li>
               ))}
             </ul>
+            <PagerBar pager={pager} noun="families" />
+            </>
           )}
         </section>
       )}

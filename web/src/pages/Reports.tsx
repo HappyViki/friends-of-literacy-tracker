@@ -4,7 +4,7 @@ import { api } from "../auth";
 import { useApp } from "../context";
 import type { Report } from "../types";
 import { BarList, ChartCard, ColumnChart, DataTable, Heatmap, ShareBar } from "../charts";
-import { ErrorBox, Loading, useAsync } from "../ui";
+import { ErrorBox, Loading, PagerBar, useAsync, usePager } from "../ui";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const today = () => new Date();
@@ -257,6 +257,7 @@ const COMMENT_GROUPS: { key: string; title: string }[] = [
 function Comments({ comments }: { comments: Report["surveys"]["comments"] }) {
   const [group, setGroup] = useState(COMMENT_GROUPS[0].key);
   const rows = comments.filter((c) => c.key === group);
+  const pager = usePager(rows, { resetKey: `${group}|${comments.length}` });
   return (
     <section className="card chart-card">
       <h3>What families told us</h3>
@@ -271,8 +272,8 @@ function Comments({ comments }: { comments: Report["surveys"]["comments"] }) {
         <p className="muted">Nothing yet in this range.</p>
       ) : (
         <ul className="plain comments">
-          {rows.map((c, i) => (
-            <li key={i}>
+          {pager.rows.map((c, i) => (
+            <li key={`${pager.page}-${i}`}>
               <p>“{c.text}”</p>
               <p className="muted small">
                 {new Date(c.submittedAt).toLocaleDateString()} · {c.location} ·{" "}
@@ -282,6 +283,7 @@ function Comments({ comments }: { comments: Report["surveys"]["comments"] }) {
           ))}
         </ul>
       )}
+      <PagerBar pager={pager} noun="answers" />
     </section>
   );
 }
