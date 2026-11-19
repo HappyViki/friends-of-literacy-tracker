@@ -195,7 +195,7 @@ function AddAccount({ onAdded }: { onAdded: (h: Handoff) => void }) {
       await api("/api/staff", { json: { email: cleanEmail, role, active: true } });
       if (method === "password" && !alreadyHadAccount) onAdded({ email: cleanEmail, password, name: name.trim() || cleanEmail });
       else if (alreadyHadAccount) setNote(`${cleanEmail} already had an account. They're on the staff list now; use "Reset password" if they need a new one.`);
-      else setNote(`${cleanEmail} is on the staff list. They can sign in with Google, or create an account with that email.`);
+      else setNote(`${cleanEmail} is on the staff list. They can create an account with that email.`);
       setName("");
       setEmail("");
       setPassword(generatePassword());
@@ -240,7 +240,7 @@ function AddAccount({ onAdded }: { onAdded: (h: Handoff) => void }) {
           <label htmlFor="sa-method">How they'll sign in</label>
           <select id="sa-method" value={method} onChange={(e) => setMethod(e.target.value as "password" | "own")}>
             <option value="password">I'll set a password for them</option>
-            <option value="own">They'll use Google or make their own</option>
+            <option value="own">They'll create their own account</option>
           </select>
         </div>
       </div>

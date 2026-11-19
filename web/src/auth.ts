@@ -23,8 +23,7 @@ export const emailOtp = extra.emailOtp;
 export const authAdmin = extra.admin;
 
 // The SDK answers any URL containing "/token" from its cached session once getSession() has run,
-// so a plain token() returns { session, user } instead of { token } (e.g. right after Google sign-in,
-// or on any page reload). X-Force-Fetch makes the SDK skip that cache and call /token.
+// so a plain token() returns { session, user } instead of { token } (e.g. on any page reload). X-Force-Fetch makes the SDK skip that cache and call /token.
 // The JWT lasts 15 minutes; reuse it until a minute before it expires.
 let cachedJwt: { token: string; exp: number } | null = null;
 
