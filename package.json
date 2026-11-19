@@ -1,0 +1,46 @@
+{
+  "name": "fol",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p . && vite build",
+    "start": "vite preview --port 4173 --strictPort",
+    "dev": "vite --port 5173 --strictPort",
+    "dev:api": "neon dev --env .env.local",
+    "db:migrate": "node --env-file=.env.local node_modules/.bin/drizzle-kit migrate",
+    "deploy": "neon deploy --env .env.local",
+    "test:e2e": "node --env-file=.env.local --import tsx scripts/e2e.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:seed": "node --env-file=.env.local --import tsx scripts/seed.ts",
+    "seed:demo": "node --env-file=.env.local --import tsx scripts/seed-demo.ts",
+    "staff:add": "node --env-file=.env.local --import tsx scripts/staff.ts",
+    "test:smoke": "node --env-file=.env.neon-production --import tsx scripts/smoke.ts",
+    "deploy:production": "neon deploy --branch production --env .env.neon-production --no-env-pull"
+  },
+  "dependencies": {
+    "@neon/auth": "^0.8.2",
+    "@neon/config": "^1.14.4",
+    "@neon/env": "^2.1.7",
+    "@neon/functions": "^0.11.0",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.19",
+    "jose": "^6.2.18",
+    "jsbarcode": "^3.11.6",
+    "pg": "^8.23.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9",
+    "vite": "^8.3.8"
+  }
+}
