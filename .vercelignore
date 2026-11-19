@@ -1,0 +1,5 @@
+# Never upload local Neon settings or secrets with `vercel deploy`.
+.env*
+!.env.example
+.neon
+dist

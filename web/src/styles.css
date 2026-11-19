@@ -1362,41 +1362,6 @@ dd {
   margin: 0 auto;
 }
 
-/* Google sign-in */
-.or-divider {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #927f91;
-  font-size: 14px;
-  margin: 14px 0 10px;
-}
-.or-divider::before,
-.or-divider::after {
-  content: "";
-  flex: 1;
-  border-top: 1px solid var(--border);
-}
-.google {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  background: #fff;
-  color: #3c4043;
-  border: 1px solid #dadce0;
-  border-radius: 10px;
-  min-height: 44px;
-  font-weight: bold;
-  cursor: pointer;
-}
-.google:hover {
-  background: #f8f9fa;
-}
-.google.block {
-  width: 100%;
-}
-
 .link.danger {
   color: #b42318;
 }

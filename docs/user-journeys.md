@@ -43,7 +43,7 @@ Legend: ✅ in place · 🆕 added for these journeys · ⏳ open (not built)
 | Need | Status |
 | --- | --- |
 | Add an intern with a password, reset it, remove access when they leave | ✅ |
-| Staff sign in with Google | ✅ (demo; production needs its own Google OAuth client) |
+| Staff sign in with Google | ⏸️ Off. Needs the organization's own Google OAuth client; then restore the button in `web/src/pages/Auth.tsx` and enable Google in Neon Auth |
 
 ## Open (⏳), roughly by value
 
@@ -52,5 +52,5 @@ Legend: ✅ in place · 🆕 added for these journeys · ⏳ open (not built)
 3. **Edit or remove an adult/child**, and let staff change their own password.
 4. **Follow-up workflow for resource requests** — mark a "how else can we help" answer as handled, and by whom.
 5. **Reports page dates in the organization's time zone** (the Excel export already is; the Reports page groups by UTC).
-6. **Production rollout** — production Vercel site, `ALLOWED_ORIGINS` and Neon Auth trusted domain for it, own Google OAuth client, custom email sender, `ORG_TIMEZONE`.
+6. **Production rollout** — production Vercel site, `ALLOWED_ORIGINS` and Neon Auth trusted domain for it, custom email sender, `ORG_TIMEZONE`.
 7. **"Benchmark" as a property of a question** (today: required). If benchmarks need their own reporting rules, make it explicit.

@@ -41,14 +41,13 @@ account's **email to be verified** and listed in `staff_members`. Add the first 
 `web/` is the staff app (Vite + React, no UI framework). `npm run dev` serves it on
 http://localhost:5173 against the API deployed to the linked branch (the API allows that origin).
 
-- **Sign-in**: Neon Auth email and password or Google, email verification by code, a "not on the
-  staff list" screen, then a location picker (remembered per browser; change it from the header).
+- **Sign-in**: Neon Auth email and password, email verification by code, a "not on the staff
+  list" screen, then a location picker (remembered per browser; change it from the header). Google
+  sign-in is off until the organization has its own Google OAuth client.
   The browser reaches Neon Auth through this site's own origin at `/neon-auth`, so its cookies are
   first-party and sign-in works in browsers that block third-party cookies (Safari). Locally that's
-  the Vite dev/preview proxy; on Vercel, `npm run build` adds a small Node.js Function
-  (`web/vercel/neon-auth.js` → `dist/web/api/neon-auth.mjs`) and `vercel.json` routing to it.
-  Deploy the built site with `vercel deploy --prod` from `dist/web`, and add the site's address
-  as a Neon Auth trusted domain and to the API's `ALLOWED_ORIGINS`.
+  the Vite dev/preview proxy; on Vercel it's the Node.js Function `api/neon-auth.js`, which the
+  root `vercel.json` routes `/neon-auth/*` to.
 - **Front desk**: one search box for a scanned or typed card, email, phone or name (typos are fine).
   Lost cards still find the family, with a warning.
 - **New family**: guardians, children (birth year/month or just an age), ZIP and home languages;
@@ -69,6 +68,23 @@ http://localhost:5173 against the API deployed to the linked branch (the API all
   date range and location; dates use `ORG_TIMEZONE` (default America/Los_Angeles). Admins only.
 
 It is laid out for phones and tablets as well as desktops.
+
+## Deploying the staff UI (Vercel)
+
+Import the GitHub repo into Vercel, or run `vercel deploy --prod` from the repo root. The root
+`vercel.json` sets the build (`npm run build` → `dist/web`) and the `/neon-auth` route. Set these
+Vercel environment variables (Production) to the **production** branch's values from
+`.env.neon-production`. They are public URLs, not secrets:
+
+| Variable | Used for |
+| --- | --- |
+| `VITE_API_URL` | The API's address, baked into the site at build time (`https://<production branch id>-api.<NEON_FUNCTION_HOST_SUFFIX>`) |
+| `NEON_AUTH_BASE_URL` | The production Neon Auth URL; the build needs it and `api/neon-auth.js` proxies to it |
+
+Then add the site's address as a Neon Auth trusted domain and to the API's `ALLOWED_ORIGINS`
+(`npm run deploy:production`). Preview deployments get new hostnames that aren't trusted, so
+sign-in only works on the production address. A plain local `npm run build` uses `.env.local`
+(the dev branch), so don't deploy a local build to production.
 
 ## Demo data
 
@@ -97,6 +113,7 @@ If staff have since used demo families or locations, the reset stops and lists w
 | `src/books/` | ISBN lookup and categorizer |
 | `src/domain/` | Card numbers, contact normalization, ages |
 | `web/` | Staff UI (Vite + React) |
+| `api/neon-auth.js`, `vercel.json` | Vercel: the `/neon-auth` proxy Function and its route |
 | `scripts/` | Seed, demo data, staff, end-to-end test |
 | `docs/architecture/` | System overview for stakeholders: `architecture.pdf` to share, `architecture.html` to edit |
 
@@ -115,7 +132,7 @@ If staff have since used demo families or locations, the reset stops and lists w
 | `npm run test:e2e` | End-to-end test against the deployed API (refuses to run on production) |
 | `npm run test:smoke` | Production-safe smoke test (needs `neon env pull --branch production --file .env.neon-production`) |
 | `npm run dev` | Staff UI on http://localhost:5173 against the deployed API |
-| `npm run build` / `npm start` | Build / serve the staff UI |
+| `npm run build` / `npm start` | Build / serve the staff UI (deploying: see [Deploying the staff UI](#deploying-the-staff-ui-vercel)) |
 
 ## API
 
