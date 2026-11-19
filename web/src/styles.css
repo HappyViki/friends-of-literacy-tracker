@@ -1423,3 +1423,49 @@ dd {
 .comments li p {
   margin: 0 0 2px;
 }
+
+/* Pages for long tables */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-top: 12px;
+}
+.pager-pages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.pager-pages button {
+  min-width: 2.4em;
+}
+.pager-gap {
+  padding: 0 4px;
+}
+.pager-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: normal;
+}
+.pager-size select {
+  width: auto;
+  padding: 4px 8px;
+}
+.table-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 12px;
+}
+.table-tools input[type="search"] {
+  max-width: 280px;
+}
+.pager button {
+  padding: 6px 10px;
+}

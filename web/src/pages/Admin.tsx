@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import { api } from "../auth";
 import { useApp } from "../context";
 import type { Location, StaffMember, Survey } from "../types";
-import { ErrorBox, Loading, Notice, fmtDate, toApiError, useAsync } from "../ui";
+import { ErrorBox, Loading, Notice, PagerBar, fmtDate, toApiError, useAsync, usePager } from "../ui";
 import { SurveyCoverage } from "./SurveyCoverage";
 import { ExportContacts } from "./ExportContacts";
 import { DataExport } from "./DataExport";
@@ -37,6 +37,15 @@ function Locations() {
   const [error, setError] = useState<Error | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [show, setShow] = useState<"active" | "inactive" | "all">("active");
+  const [search, setSearch] = useState("");
+  const q = search.trim().toLowerCase();
+  const shown = locations
+    .filter((l) => (show === "all" ? true : show === "active" ? l.active : !l.active))
+    .filter((l) => !q || `${l.code} ${l.name} ${l.address ?? ""} ${l.zipCode ?? ""}`.toLowerCase().includes(q))
+    .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name));
+  const pager = usePager(shown, { size: 10, resetKey: `${show}|${q}` });
+  const count = (active: boolean) => locations.filter((l) => l.active === active).length;
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -70,6 +79,22 @@ function Locations() {
   return (
     <section className="card">
       <h2>📍 Locations</h2>
+      <div className="table-tools">
+        <div className="segmented small" role="group" aria-label="Which locations">
+          {(
+            [
+              ["active", `Active (${count(true)})`],
+              ["inactive", `Inactive (${count(false)})`],
+              ["all", `All (${locations.length})`],
+            ] as const
+          ).map(([k, label]) => (
+            <button key={k} type="button" className={show === k ? "on" : ""} aria-pressed={show === k} onClick={() => setShow(k)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <input type="search" placeholder="Search code, name or address" aria-label="Search locations" value={search} onChange={(e) => setSearch(e.target.value)} />
+      </div>
       <div className="table-scroll">
         <table className="table">
           <thead>
@@ -82,8 +107,8 @@ function Locations() {
             </tr>
           </thead>
           <tbody>
-            {locations.map((l) => (
-              <tr key={l.id}>
+            {pager.rows.map((l) => (
+              <tr key={l.id} className={l.active ? "" : "inactive"}>
                 <td className="mono">{l.code}</td>
                 <td>{l.name}</td>
                 <td>{l.type}</td>
@@ -98,6 +123,8 @@ function Locations() {
           </tbody>
         </table>
       </div>
+      {shown.length === 0 && <p className="muted">No locations match.</p>}
+      <PagerBar pager={pager} noun="locations" />
       <form className="sub" onSubmit={create}>
         <h3>Add a location</h3>
         <div className="grid4">
