@@ -166,3 +166,46 @@ export function ShareBar({ parts }: { parts: { label: string; value: number }[] 
     </div>
   );
 }
+
+/** Counts by two dimensions as a table whose cells are shaded by value (one hue, light to dark). */
+export function Heatmap({ rows, cols, value, rowLabel, colLabel, unit }: { rows: string[]; cols: string[]; value: (r: string, c: string) => number; rowLabel?: (r: string) => string; colLabel?: (c: string) => string; unit: string }) {
+  const max = Math.max(1, ...rows.flatMap((r) => cols.map((c) => value(r, c))));
+  if (rows.length === 0 || cols.length === 0) return <p className="muted">No data for this range.</p>;
+  return (
+    <div className="table-scroll">
+      <table className="table heatmap">
+        <thead>
+          <tr>
+            <th />
+            {cols.map((c) => (
+              <th key={c} className="num">
+                {colLabel ? colLabel(c) : c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r}>
+              <th scope="row">{rowLabel ? rowLabel(r) : r}</th>
+              {cols.map((c) => {
+                const v = value(r, c);
+                const t = v / max;
+                return (
+                  <td
+                    key={c}
+                    className="cell"
+                    title={`${rowLabel ? rowLabel(r) : r}, ${colLabel ? colLabel(c) : c}: ${v.toLocaleString()} ${unit}`}
+                    style={{ background: v ? `color-mix(in srgb, ${SERIES[0]} ${Math.round(8 + t * 72)}%, white)` : undefined, color: t > 0.55 ? "#fff" : undefined }}
+                  >
+                    {v ? v.toLocaleString() : <span className="muted">·</span>}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

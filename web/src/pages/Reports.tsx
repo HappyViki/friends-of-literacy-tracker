@@ -3,7 +3,7 @@ import { useState } from "react";
 import { api } from "../auth";
 import { useApp } from "../context";
 import type { Report } from "../types";
-import { BarList, ChartCard, ColumnChart, DataTable, ShareBar } from "../charts";
+import { BarList, ChartCard, ColumnChart, DataTable, Heatmap, ShareBar } from "../charts";
 import { ErrorBox, Loading, useAsync } from "../ui";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -22,6 +22,10 @@ const monthLabel = (m: string) => {
 const BOOKS_IN_HOME_ORDER = ["0", "1-10", "11-25", "26-50", "51-100", "100+"];
 const BOOKS_IN_HOME_LABEL: Record<string, string> = { "0": "None", "100+": "More than 100" };
 const AGE_ORDER = ["0-2", "3-5", "6-8", "9-12", "13-17", "18+", "unknown"];
+const LEVEL_ORDER = ["Board Book", "Picture Book", "Early Reader", "Chapter Book", "YA", "Adult", "Unknown"];
+const LANG_ORDER = ["English", "Spanish", "Bilingual", "Other", "Unknown"];
+const byOrder = (order: string[]) => (a: string, b: string) => (order.indexOf(a) + 99 * +(order.indexOf(a) < 0)) - (order.indexOf(b) + 99 * +(order.indexOf(b) < 0));
+const ageLabel = (a: string) => (a === "unknown" ? "Age unknown" : `Ages ${a}`);
 
 export function Reports() {
   const { locations } = useApp();
@@ -103,6 +107,12 @@ function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
     stockByLoc.set(s.location, v);
   }
   const perVisit = b.visits ? (b.books / b.visits).toFixed(1) : "—";
+  const levels = [...b.byReadingLevel].sort((x, y) => byOrder(LEVEL_ORDER)(x.reading_level, y.reading_level));
+  const bookLangs = [...b.byBookLanguage].sort((x, y) => byOrder(LANG_ORDER)(x.language, y.language));
+  const al = b.byChildAgeBracketAndReadingLevel;
+  const alAges = [...new Set(al.map((x) => x.age_bracket))].sort(byOrder(AGE_ORDER));
+  const alLevels = [...new Set(al.map((x) => x.reading_level))].sort(byOrder(LEVEL_ORDER));
+  const alValue = (age: string, level: string) => al.find((x) => x.age_bracket === age && x.reading_level === level)?.books ?? 0;
 
   return (
     <div className={`stack ${dim ? "dim" : ""}`}>
@@ -126,7 +136,13 @@ function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
           <BarList data={b.byCategory.slice(0, 10).map((c) => ({ label: c.category, value: c.books }))} unit="books" />
         </ChartCard>
         <ChartCard title="Books by child's age" subtitle="Age when the book was given" table={<DataTable head={["Age", "Books"]} rows={ageRows.map((a) => [a.age_bracket, a.books])} />}>
-          <BarList data={ageRows.map((a) => ({ label: a.age_bracket === "unknown" ? "Age unknown" : `Ages ${a.age_bracket}`, value: a.books }))} unit="books" />
+          <BarList data={ageRows.map((a) => ({ label: ageLabel(a.age_bracket), value: a.books }))} unit="books" />
+        </ChartCard>
+        <ChartCard title="Books by reading level" table={<DataTable head={["Reading level", "Books"]} rows={levels.map((l) => [l.reading_level, l.books])} />}>
+          <BarList data={levels.map((l) => ({ label: l.reading_level, value: l.books }))} unit="books" />
+        </ChartCard>
+        <ChartCard title="Books by language" subtitle="The book's language, not the family's" table={<DataTable head={["Language", "Books"]} rows={bookLangs.map((l) => [l.language, l.books])} />}>
+          <BarList data={bookLangs.map((l) => ({ label: l.language, value: l.books }))} unit="books" />
         </ChartCard>
         <ChartCard title="Books by location" table={<DataTable head={["Location", "Books", "Families"]} rows={b.byLocation.map((l) => [`${l.name} (${l.location})`, l.books, l.families])} />}>
           <BarList data={b.byLocation.map((l) => ({ label: l.name, value: l.books, note: `· ${l.families} fam.` }))} unit="books" />
@@ -145,6 +161,14 @@ function ReportBody({ r, dim }: { r: Report; dim: boolean }) {
           <BarList data={[...stockByLoc].map(([k, v]) => ({ label: k, value: v.new + v.used, note: `· ${v.new} new / ${v.used} used` }))} unit="copies" />
         </ChartCard>
       </div>
+
+      <ChartCard
+        title="Reading level by child's age"
+        subtitle="Books given to a specific child, by their age at the time"
+        table={<DataTable head={["Age", "Reading level", "Books"]} rows={al.map((x) => [x.age_bracket, x.reading_level, x.books])} />}
+      >
+        <Heatmap rows={alAges} cols={alLevels} value={alValue} rowLabel={ageLabel} unit="books" />
+      </ChartCard>
 
       <h2 className="section-title">📝 Survey outcomes</h2>
       <section className="kpis">

@@ -476,6 +476,45 @@ a:focus-visible {
   color: #7a4a10;
   font-size: 13px;
 }
+.badge.level {
+  background: #e6f0fa;
+  color: #23507a;
+}
+.badge.lang {
+  background: #eef2ea;
+  color: #3f5a2c;
+}
+.badge.lang-alt {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0;
+}
+.classifications {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+}
+.classification {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.classification dt {
+  min-width: 7.5em;
+  color: var(--muted);
+}
+.classification dd {
+  margin: 0;
+}
+.heatmap td.cell {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
 .tabs {
   display: flex;
   gap: 4px;

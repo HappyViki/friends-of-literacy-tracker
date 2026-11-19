@@ -82,7 +82,15 @@ export type Book = {
   category: string;
   categoryModel: string;
   categoryConfidence: number | null;
+  readingLevel: string | null;
+  readingLevelSource: string | null;
+  readingLevelConfidence: number | null;
+  language: string | null;
+  languageSource: string | null;
+  languageConfidence: number | null;
 };
+
+export type Classifications = { categories: string[]; readingLevels: string[]; languages: string[] };
 
 export type StockRow = { locationId: number; location: string; condition: "new" | "used"; onHand: number };
 
@@ -137,6 +145,9 @@ export type Report = {
     visits: number;
     byCondition: { condition: string; books: number }[];
     byCategory: { category: string; books: number }[];
+    byReadingLevel: { reading_level: string; books: number }[];
+    byBookLanguage: { language: string; books: number }[];
+    byChildAgeBracketAndReadingLevel: { age_bracket: string; reading_level: string; books: number }[];
     byLocation: { location: string; name: string; books: number; families: number }[];
     byMonth: { month: string; books: number; families: number }[];
     byChildAgeBracket: { age_bracket: string; books: number }[];

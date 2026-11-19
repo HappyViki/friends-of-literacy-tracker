@@ -2,9 +2,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api, ApiError } from "../auth";
 import { useApp } from "../context";
-import type { Book, BookScan, InventoryRow, StockRow } from "../types";
+import type { Book, BookScan, Classifications, InventoryRow, StockRow } from "../types";
 import { ErrorBox, Loading, Notice, ScanField, fmtDate, fmtDateTime, go, plural, toApiError, useAsync } from "../ui";
-import { Cover } from "./GiveBooks";
+import { BookTags, Cover } from "./GiveBooks";
 
 const TABS = [
   { key: "scan", label: "📖 Scan a book" },
@@ -72,6 +72,21 @@ function confidence(c: number | null) {
   return `${Math.round(c * 100)}% confident`;
 }
 
+const SOURCE_LABEL: Record<string, string> = { manual: "entered by hand", demo: "demo data", rules: "by keyword rules", metadata: "from the publisher's data" };
+const sourceLabel = (s: string | null) => (s ? (SOURCE_LABEL[s] ?? `by ${s}`) : null);
+
+function Classification({ label, value, source, conf }: { label: string; value: string | null; source: string | null; conf: number | null }) {
+  return (
+    <div className="classification">
+      <dt>{label}</dt>
+      <dd>
+        {value ? <b>{value}</b> : <span className="muted">Not known</span>}
+        {value && <span className="muted small"> {[sourceLabel(source), confidence(conf)].filter(Boolean).join(", ")}</span>}
+      </dd>
+    </div>
+  );
+}
+
 function BookDetails({ scan }: { scan: BookScan }) {
   const { locations } = useApp();
   const b = scan.book;
@@ -93,12 +108,11 @@ function BookDetails({ scan }: { scan: BookScan }) {
           <p className="muted small">
             {[b.publisher, b.publishedDate, b.pageCount ? `${b.pageCount} pages` : null, `ISBN ${b.isbn}`].filter(Boolean).join(" · ")}
           </p>
-          <p>
-            <span className="badge cat">{b.category}</span>{" "}
-            <span className="muted small">
-              {[confidence(b.categoryConfidence), b.categoryModel === "manual" ? "entered by hand" : `by ${b.categoryModel}`].filter(Boolean).join(", ")}
-            </span>
-          </p>
+          <dl className="classifications">
+            <Classification label="Reading level" value={b.readingLevel} source={b.readingLevelSource} conf={b.readingLevelConfidence} />
+            <Classification label="Language" value={b.language} source={b.languageSource} conf={b.languageConfidence} />
+            <Classification label="Genre" value={b.category} source={b.categoryModel} conf={b.categoryConfidence} />
+          </dl>
           {b.description && <p className="desc">{b.description.length > 400 ? b.description.slice(0, 400) + "…" : b.description}</p>}
           <div className="kpis small-kpis">
             <div className="kpi">
@@ -286,9 +300,9 @@ function Receive() {
                   <b>
                     +{r.quantity} {r.condition} · {r.book.title}
                   </b>
+                  <BookTags book={r.book} />
                   <span className="muted small">
-                    {r.book.category}
-                    {r.firstScan && " · new to the catalog"} · now {here(r.stock) || "0"} here
+                    {r.firstScan ? "New to the catalog · " : ""}now {here(r.stock) || "0"} here
                   </span>
                 </div>
               </li>
@@ -301,10 +315,12 @@ function Receive() {
 }
 
 function AddByHand({ isbn, onAdded, onCancel }: { isbn: string; onAdded: () => void; onCancel: () => void }) {
-  const cats = useAsync(() => api<{ categories: string[] }>("/api/categories"), []);
+  const cats = useAsync(() => api<Classifications>("/api/categories"), []);
   const [title, setTitle] = useState("");
   const [authors, setAuthors] = useState("");
   const [category, setCategory] = useState("Children's");
+  const [readingLevel, setReadingLevel] = useState("");
+  const [language, setLanguage] = useState("");
   const [error, setError] = useState<Error | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -314,7 +330,14 @@ function AddByHand({ isbn, onAdded, onCancel }: { isbn: string; onAdded: () => v
     setError(null);
     try {
       await api("/api/books", {
-        json: { isbn, title, category, authors: authors.split(/[,;]/).map((a) => a.trim()).filter(Boolean) },
+        json: {
+          isbn,
+          title,
+          category,
+          readingLevel,
+          language: language || null,
+          authors: authors.split(/[,;]/).map((a) => a.trim()).filter(Boolean),
+        },
       });
       onAdded();
     } catch (err) {
@@ -336,12 +359,38 @@ function AddByHand({ isbn, onAdded, onCancel }: { isbn: string; onAdded: () => v
         Author(s) <span className="opt">comma-separated</span>
       </label>
       <input id="bh-authors" value={authors} onChange={(e) => setAuthors(e.target.value)} />
-      <label htmlFor="bh-cat">Category</label>
-      <select id="bh-cat" value={category} onChange={(e) => setCategory(e.target.value)}>
-        {(cats.data?.categories ?? [category]).map((c) => (
-          <option key={c}>{c}</option>
-        ))}
-      </select>
+      <div className="grid3">
+        <div>
+          <label htmlFor="bh-level">Reading level</label>
+          <select id="bh-level" value={readingLevel} onChange={(e) => setReadingLevel(e.target.value)} required>
+            <option value="" disabled>
+              Pick one…
+            </option>
+            {(cats.data?.readingLevels ?? []).map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="bh-lang">
+            Language <span className="opt">optional</span>
+          </label>
+          <select id="bh-lang" value={language} onChange={(e) => setLanguage(e.target.value)}>
+            <option value="">Not sure</option>
+            {(cats.data?.languages ?? []).map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="bh-cat">Genre</label>
+          <select id="bh-cat" value={category} onChange={(e) => setCategory(e.target.value)}>
+            {(cats.data?.categories ?? [category]).map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+      </div>
       <ErrorBox error={error ?? cats.error} />
       <div className="actions">
         <button className="primary" disabled={busy}>

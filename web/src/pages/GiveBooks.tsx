@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { api, ApiError } from "../auth";
 import { useApp } from "../context";
-import type { BookScan, Family } from "../types";
+import type { Book, BookScan, Family } from "../types";
 import { ErrorBox, Loading, Notice, ScanField, familyName, plural, toApiError, useAsync } from "../ui";
 
 type Line = { key: number; scan: BookScan; condition: "new" | "used"; childId: string; quantity: number };
@@ -132,8 +132,9 @@ export function GiveBooks({ householdId }: { householdId: string }) {
                   <div className="basket-main">
                     <b>{l.scan.book.title}</b>
                     <span className="muted small">
-                      {l.scan.book.authors.join(", ") || "Unknown author"} · {l.scan.book.category}
+                      {l.scan.book.authors.join(", ") || "Unknown author"}
                     </span>
+                    <BookTags book={l.scan.book} />
                     <div className="basket-controls">
                       <div className="segmented small" role="radiogroup" aria-label="Condition">
                         {(["new", "used"] as const).map((c) => (
@@ -193,5 +194,16 @@ export function Cover({ url, title, large }: { url: string | null; title: string
     <div className={`cover placeholder ${large ? "large" : ""}`} aria-hidden>
       📖
     </div>
+  );
+}
+
+/** Reading level, language and genre as small badges. */
+export function BookTags({ book, showCategory = true }: { book: Pick<Book, "readingLevel" | "language" | "category">; showCategory?: boolean }) {
+  return (
+    <span className="tags">
+      {book.readingLevel && <span className="badge level">{book.readingLevel}</span>}
+      {book.language && <span className={`badge lang ${book.language === "English" ? "" : "lang-alt"}`}>{book.language}</span>}
+      {showCategory && <span className="badge cat">{book.category}</span>}
+    </span>
   );
 }
